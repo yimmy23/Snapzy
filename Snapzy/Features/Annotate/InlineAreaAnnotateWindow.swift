@@ -2,7 +2,7 @@
 //  InlineAreaAnnotateWindow.swift
 //  Snapzy
 //
-//  Full-screen overlay for selecting and annotating a screenshot region.
+//  Per-display overlays for selecting and annotating a screenshot region.
 //
 
 import AppKit
@@ -11,50 +11,96 @@ import SwiftUI
 @MainActor
 final class InlineAreaAnnotateCoordinator {
   static let shared = InlineAreaAnnotateCoordinator()
-  private var activeWindow: InlineAreaAnnotatePanel?
+  private var activeWindows: [InlineAreaAnnotatePanel] = []
 
   func start(
-    screen: NSScreen,
-    displayID: CGDirectDisplayID,
-    backdrop: AreaSelectionBackdrop,
+    screens: [NSScreen],
+    primaryDisplayID: CGDirectDisplayID,
+    backdrops: [CGDirectDisplayID: AreaSelectionBackdrop],
     frozenSession: FrozenAreaCaptureSession,
     saveDirectory: URL,
     outputFormat: ImageFormat,
     onComplete: @escaping (CaptureResult) -> Void
   ) {
-    activeWindow?.close()
+    closeActiveWindows()
+    let availableScreens = screens.filter { screen in
+      guard let displayID = screen.displayID else { return false }
+      return backdrops[displayID] != nil
+    }
+    guard !availableScreens.isEmpty else {
+      onComplete(.failure(.noDisplayFound))
+      return
+    }
+
+    let desktopFrame = InlineAreaAnnotateSession.desktopFrame(for: availableScreens.map(\.frame))
+    let displays = availableScreens.compactMap { screen -> InlineAreaAnnotateDisplay? in
+      guard let displayID = screen.displayID,
+            let backdrop = backdrops[displayID] else { return nil }
+      return InlineAreaAnnotateDisplay(
+        displayID: displayID,
+        screenFrame: screen.frame,
+        localFrame: InlineAreaAnnotateSession.localFrame(for: screen.frame, in: desktopFrame),
+        controlInsets: InlineAreaControlInsets(screen: screen),
+        backdropImage: NSImage(cgImage: backdrop.image, size: screen.frame.size)
+      )
+    }
+    guard !displays.isEmpty else {
+      onComplete(.failure(.noDisplayFound))
+      return
+    }
+
     let session = InlineAreaAnnotateSession(
-      displayID: displayID,
-      screenFrame: screen.frame,
-      controlInsets: InlineAreaControlInsets(screen: screen),
-      backdrop: backdrop,
+      primaryDisplayID: primaryDisplayID,
+      desktopFrame: desktopFrame,
+      displays: displays,
       frozenSession: frozenSession,
       saveDirectory: saveDirectory,
       outputFormat: outputFormat,
       onComplete: onComplete
     )
-    let window = InlineAreaAnnotatePanel(screen: screen, session: session)
-    window.onClose = { [weak self, weak window] in
-      guard let self, let window, self.activeWindow === window else { return }
-      self.activeWindow = nil
+
+    let windows = displays.map { display in
+      InlineAreaAnnotatePanel(display: display, session: session)
     }
-    activeWindow = window
-    session.attach(window: window)
-    window.orderFrontRegardless()
-    window.makeKey()
+    activeWindows = windows
+
+    for window in windows {
+      window.onClose = { [weak self, weak window] in
+        guard let self, let window else { return }
+        self.activeWindows.removeAll { $0 === window }
+      }
+      session.attach(window: window)
+      window.orderFrontRegardless()
+      if window.displayID == primaryDisplayID {
+        window.makeKey()
+      }
+    }
+    if !windows.contains(where: { $0.displayID == primaryDisplayID }) {
+      windows.first?.makeKey()
+    }
+  }
+
+  private func closeActiveWindows() {
+    let windows = activeWindows
+    activeWindows.removeAll()
+    for window in windows {
+      window.close()
+    }
   }
 }
 
 final class InlineAreaAnnotatePanel: NSPanel {
   var onClose: (() -> Void)?
+  let displayID: CGDirectDisplayID
 
   private let session: InlineAreaAnnotateSession
   private var didNotifyClose = false
 
-  init(screen: NSScreen, session: InlineAreaAnnotateSession) {
+  init(display: InlineAreaAnnotateDisplay, session: InlineAreaAnnotateSession) {
+    self.displayID = display.displayID
     self.session = session
     super.init(
-      contentRect: screen.frame,
+      contentRect: display.screenFrame,
       styleMask: [.borderless, .nonactivatingPanel],
       backing: .buffered,
       defer: false
@@ -73,7 +119,10 @@ final class InlineAreaAnnotatePanel: NSPanel {
     animationBehavior = .none
     becomesKeyOnlyIfNeeded = true
 
-    contentView = InlineAreaHostingView(rootView: InlineAreaAnnotateRootView(session: session))
+    contentView = InlineAreaHostingView(rootView: InlineAreaAnnotateRootView(
+      session: session,
+      display: display
+    ))
   }
 
   override var canBecomeKey: Bool { true }
@@ -106,7 +155,8 @@ private final class InlineAreaHostingView<Content: View>: NSHostingView<Content>
 
 private struct InlineAreaAnnotateRootView: View {
   @ObservedObject var session: InlineAreaAnnotateSession
-  @State private var selectionStart: CGPoint?
+  let display: InlineAreaAnnotateDisplay
+
   @State private var movingStartRect: CGRect?
   @State private var movingPreviewRect: CGRect?
   @State private var resizingStartRect: CGRect?
@@ -117,27 +167,36 @@ private struct InlineAreaAnnotateRootView: View {
 
   var body: some View {
     GeometryReader { geometry in
-      let displayRect = resizePreviewRect ?? movingPreviewRect ?? session.selectionRect
+      let desktopRect = resizePreviewRect ?? movingPreviewRect ?? session.selectionRect
+      let viewportRect = desktopRect.map(rectInViewport)
       let isSelectionPreviewing = resizePreviewRect != nil || movingPreviewRect != nil
       let showsCursorIndicator = session.phase == .selecting || movingPreviewRect != nil
 
       ZStack(alignment: .topLeading) {
-        Image(nsImage: session.backdropImage)
-          .resizable()
-          .frame(width: geometry.size.width, height: geometry.size.height)
+        ForEach(session.displays) { backdropDisplay in
+          Image(nsImage: backdropDisplay.backdropImage)
+            .resizable()
+            .frame(width: backdropDisplay.localFrame.width, height: backdropDisplay.localFrame.height)
+            .position(
+              x: backdropDisplay.localFrame.midX - display.localFrame.minX,
+              y: backdropDisplay.localFrame.midY - display.localFrame.minY
+            )
+        }
 
-        selectionDimLayer(size: geometry.size, rect: displayRect)
+        selectionDimLayer(size: geometry.size, rect: viewportRect)
 
-        if let rect = displayRect {
+        if let desktopRect, let viewportRect {
           if session.phase == .annotating {
-            annotateSurface(rect: rect, usesBackdropPreview: isSelectionPreviewing)
+            annotateSurface(rect: viewportRect, usesBackdropPreview: isSelectionPreviewing)
             if session.isMoveModifierActive {
-              spaceMoveHitArea(rect: rect)
+              spaceMoveHitArea(rect: viewportRect, desktopRect: desktopRect)
             }
-            resizeHandles(rect: rect, containerSize: geometry.size)
-            controls(rect: rect, containerSize: geometry.size)
+            resizeHandles(rect: viewportRect, desktopRect: desktopRect)
+            if session.controlDisplayID(for: desktopRect) == display.displayID {
+              controls(rect: viewportRect, desktopRect: desktopRect, containerSize: geometry.size)
+            }
           } else {
-            selectionBorder(rect: rect)
+            selectionBorder(rect: viewportRect)
           }
         }
 
@@ -165,29 +224,29 @@ private struct InlineAreaAnnotateRootView: View {
     DragGesture(minimumDistance: 0, coordinateSpace: .named(InlineAreaCoordinateSpace.root))
       .onChanged { value in
         guard session.phase == .selecting else { return }
-        let start = selectionStart ?? value.startLocation
-        selectionStart = start
+        let currentLocation = desktopPoint(for: value.location)
         cursorIndicatorPoint = value.location
         updateNativeCursorForIndicator(true)
-        session.selectionRect = CGRect(
-          x: min(start.x, value.location.x),
-          y: min(start.y, value.location.y),
-          width: abs(value.location.x - start.x),
-          height: abs(value.location.y - start.y)
-        )
+        session.beginSelection(at: desktopPoint(for: value.startLocation))
+        session.updateSelection(to: currentLocation)
       }
-      .onEnded { _ in
-        guard session.phase == .selecting, let rect = session.selectionRect else { return }
-        selectionStart = nil
-        if rect.width > 5, rect.height > 5 {
-          session.beginAnnotating(with: rect)
-          cursorIndicatorPoint = nil
-          InlineAreaNativeCursor.restoreArrow()
-        } else {
-          session.selectionRect = nil
-          updateNativeCursorForIndicator(true)
-        }
+      .onEnded { value in
+        guard session.phase == .selecting else { return }
+        session.endSelection(at: desktopPoint(for: value.location))
+        cursorIndicatorPoint = nil
+        InlineAreaNativeCursor.restoreArrow()
       }
+  }
+
+  private func rectInViewport(_ desktopRect: CGRect) -> CGRect {
+    desktopRect.offsetBy(dx: -display.localFrame.minX, dy: -display.localFrame.minY)
+  }
+
+  private func desktopPoint(for viewportPoint: CGPoint) -> CGPoint {
+    CGPoint(
+      x: viewportPoint.x + display.localFrame.minX,
+      y: viewportPoint.y + display.localFrame.minY
+    )
   }
 
   private func selectionDimLayer(size: CGSize, rect: CGRect?) -> some View {
@@ -237,12 +296,12 @@ private struct InlineAreaAnnotateRootView: View {
     .position(x: rect.midX, y: rect.midY)
   }
 
-  private func spaceMoveHitArea(rect: CGRect) -> some View {
+  private func spaceMoveHitArea(rect: CGRect, desktopRect: CGRect) -> some View {
     Color.clear
       .contentShape(Rectangle())
       .frame(width: rect.width, height: rect.height)
       .position(x: rect.midX, y: rect.midY)
-      .gesture(moveGesture(for: rect))
+      .gesture(moveGesture(for: desktopRect))
       .onHover { hovering in
         if hovering {
           NSCursor.openHand.set()
@@ -253,19 +312,19 @@ private struct InlineAreaAnnotateRootView: View {
   }
 
   @ViewBuilder
-  private func controls(rect: CGRect, containerSize: CGSize) -> some View {
+  private func controls(rect: CGRect, desktopRect: CGRect, containerSize: CGSize) -> some View {
     let placement = controlPlacement(
       for: rect,
       containerSize: containerSize,
       showsProperties: session.state.showsQuickPropertiesBar,
       propertiesContentWidth: propertiesContentWidth,
-      controlInsets: session.controlInsets
+      controlInsets: display.controlInsets
     )
 
     InlineAreaControlDeck(
       session: session,
       maxWidth: placement.toolbarWidth,
-      moveGesture: moveGesture(for: rect)
+      moveGesture: moveGesture(for: desktopRect)
     )
     .frame(width: placement.toolbarWidth, height: InlineAreaLayout.toolbarHeight)
     .position(placement.toolbarCenter)
@@ -299,12 +358,12 @@ private struct InlineAreaAnnotateRootView: View {
       }
   }
 
-  private func moveGesture(for rect: CGRect) -> some Gesture {
+  private func moveGesture(for desktopRect: CGRect) -> some Gesture {
     DragGesture(minimumDistance: 2, coordinateSpace: .named(InlineAreaCoordinateSpace.root))
       .onChanged { value in
         guard activeResizeHandle == nil else { return }
         if movingStartRect == nil {
-          movingStartRect = rect
+          movingStartRect = desktopRect
         }
         guard let start = movingStartRect else { return }
         let previewRect = session.clampedSelectionPreview(
@@ -319,7 +378,7 @@ private struct InlineAreaAnnotateRootView: View {
         updateNativeCursorForIndicator(true)
       }
       .onEnded { value in
-        let start = movingStartRect ?? rect
+        let start = movingStartRect ?? desktopRect
         let finalRect = session.clampedSelectionPreview(
           for: start.offsetBy(dx: value.translation.width, dy: value.translation.height)
         )
@@ -336,7 +395,7 @@ private struct InlineAreaAnnotateRootView: View {
   }
 
   @ViewBuilder
-  private func resizeHandles(rect: CGRect, containerSize: CGSize) -> some View {
+  private func resizeHandles(rect: CGRect, desktopRect: CGRect) -> some View {
     InlineAreaResizeHandlesOverlay()
       .frame(width: rect.width, height: rect.height)
       .position(x: rect.midX, y: rect.midY)
@@ -345,19 +404,23 @@ private struct InlineAreaAnnotateRootView: View {
     ForEach(InlineAreaResizeHandle.allCases) { handle in
       InlineAreaResizeHandleHitTarget(handle: handle)
         .position(handle.position(in: rect))
-        .gesture(resizeGesture(for: handle, rect: rect, containerSize: containerSize))
+        .gesture(resizeGesture(
+          for: handle,
+          desktopRect: desktopRect,
+          containerSize: session.desktopFrame.size
+        ))
     }
   }
 
   private func resizeGesture(
     for handle: InlineAreaResizeHandle,
-    rect: CGRect,
+    desktopRect: CGRect,
     containerSize: CGSize
   ) -> some Gesture {
     DragGesture(minimumDistance: 1, coordinateSpace: .global)
       .onChanged { value in
         if resizingStartRect == nil {
-          resizingStartRect = rect
+          resizingStartRect = desktopRect
         }
         guard let start = resizingStartRect else { return }
         let previewRect = resizedSelectionRect(
@@ -375,7 +438,7 @@ private struct InlineAreaAnnotateRootView: View {
         }
       }
       .onEnded { value in
-        let start = resizingStartRect ?? rect
+        let start = resizingStartRect ?? desktopRect
         let finalRect = resizedSelectionRect(
           from: start,
           handle: handle,

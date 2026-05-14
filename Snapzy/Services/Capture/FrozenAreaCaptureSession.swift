@@ -32,6 +32,14 @@ nonisolated final class FrozenAreaCaptureSession {
     FrozenAreaCaptureSession(snapshots: [snapshot.displayID: snapshot])
   }
 
+  static func fromSnapshots(_ snapshots: [FrozenDisplaySnapshot]) -> FrozenAreaCaptureSession {
+    var snapshotsByDisplayID: [CGDirectDisplayID: FrozenDisplaySnapshot] = [:]
+    for snapshot in snapshots {
+      snapshotsByDisplayID[snapshot.displayID] = snapshot
+    }
+    return FrozenAreaCaptureSession(snapshots: snapshotsByDisplayID)
+  }
+
   @MainActor
   static func prepare(
     captureManager: ScreenCaptureManager? = nil,

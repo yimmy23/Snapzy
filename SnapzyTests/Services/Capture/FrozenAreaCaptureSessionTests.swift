@@ -319,6 +319,20 @@ final class FrozenAreaCaptureSessionTests: XCTestCase {
     XCTAssertEqual(session.backdrops.count, 2)
   }
 
+  func testFromSnapshots_buildsSessionWithEverySnapshot() {
+    guard let firstSnapshot = makeSnapshot(displayID: 1),
+          let secondSnapshot = makeSnapshot(displayID: 2, screenOriginX: 200) else {
+      XCTFail("Failed to create snapshots")
+      return
+    }
+
+    let session = FrozenAreaCaptureSession.fromSnapshots([firstSnapshot, secondSnapshot])
+
+    XCTAssertEqual(session.displayIDs, [1, 2])
+    XCTAssertNotNil(session.backdrop(for: 1))
+    XCTAssertNotNil(session.backdrop(for: 2))
+  }
+
   func testCropImage_afterAddingSecondDisplay_usesSecondDisplayOrigin() throws {
     guard let session = makeSession(displayID: 1),
           let secondSnapshot = makeSnapshot(

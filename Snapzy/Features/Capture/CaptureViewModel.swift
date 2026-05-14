@@ -577,27 +577,26 @@ final class ScreenCaptureViewModel: ObservableObject, KeyboardShortcutDelegate {
         let frozenSession: FrozenAreaCaptureSession
         do {
           self.isCapturing = true
-          if let fastSnapshot = self.captureManager.captureFastDisplaySnapshot(
-            displayID: targetDisplayID,
+          let snapshotStartedAt = Date()
+          let preparedSession = try await self.prepareInlineAreaAnnotateFrozenSession(
             showCursor: showCursor,
             excludeDesktopIcons: excludeDesktopIcons,
             excludeDesktopWidgets: excludeDesktopWidgets,
-            excludeOwnApplication: excludeOwnApplication
-          ) {
-            frozenSession = FrozenAreaCaptureSession.fromSnapshot(fastSnapshot)
-          } else {
-            let shareableContentTask = prefetchedContentTask ?? self.captureManager.prefetchShareableContent(
-              includeDesktopWindows: excludeDesktopIcons || excludeDesktopWidgets
-            )
-            frozenSession = try await FrozenAreaCaptureSession.prepare(
-              displayIDs: [targetDisplayID],
-              showCursor: showCursor,
-              excludeDesktopIcons: excludeDesktopIcons,
-              excludeDesktopWidgets: excludeDesktopWidgets,
-              excludeOwnApplication: excludeOwnApplication,
-              prefetchedContentTask: shareableContentTask
-            )
-          }
+            excludeOwnApplication: excludeOwnApplication,
+            prefetchedContentTask: prefetchedContentTask
+          )
+          frozenSession = preparedSession.session
+          let snapshotDurationMs = Int(Date().timeIntervalSince(snapshotStartedAt) * 1000)
+          DiagnosticLogger.shared.log(
+            .info,
+            .capture,
+            "Inline area annotate snapshots prepared",
+            context: [
+              "displayCount": "\(frozenSession.displayIDs.count)",
+              "duration_ms": "\(snapshotDurationMs)",
+              "mode": preparedSession.mode,
+            ]
+          )
           self.isCapturing = false
         } catch let error as CaptureError {
           self.isCapturing = false
@@ -615,8 +614,15 @@ final class ScreenCaptureViewModel: ObservableObject, KeyboardShortcutDelegate {
           return
         }
 
-        guard let screen = NSScreen.screens.first(where: { $0.displayID == targetDisplayID }),
-              let backdrop = frozenSession.backdrops[targetDisplayID] else {
+        let snapshotDisplayIDs = frozenSession.displayIDs
+        let screens = NSScreen.screens.filter { screen in
+          guard let displayID = screen.displayID else { return false }
+          return snapshotDisplayIDs.contains(displayID)
+        }
+        let primaryDisplayID = snapshotDisplayIDs.contains(targetDisplayID)
+          ? targetDisplayID
+          : screens.compactMap(\.displayID).first ?? targetDisplayID
+        guard !screens.isEmpty else {
           self.isAreaSelectionActive = false
           self.lastCaptureResult = .failure(.noDisplayFound)
           hiddenWindowSession.restore()
@@ -629,9 +635,9 @@ final class ScreenCaptureViewModel: ObservableObject, KeyboardShortcutDelegate {
           exportDirectory: resolvedSaveDirectory
         )
         InlineAreaAnnotateCoordinator.shared.start(
-          screen: screen,
-          displayID: targetDisplayID,
-          backdrop: backdrop,
+          screens: screens,
+          primaryDisplayID: primaryDisplayID,
+          backdrops: frozenSession.backdrops,
           frozenSession: frozenSession,
           saveDirectory: actualSaveDirectory,
           outputFormat: self.resolvedFormat
@@ -651,6 +657,43 @@ final class ScreenCaptureViewModel: ObservableObject, KeyboardShortcutDelegate {
         }
       }
     }
+  }
+
+  private func prepareInlineAreaAnnotateFrozenSession(
+    showCursor: Bool,
+    excludeDesktopIcons: Bool,
+    excludeDesktopWidgets: Bool,
+    excludeOwnApplication: Bool,
+    prefetchedContentTask: ShareableContentPrefetchTask?
+  ) async throws -> (session: FrozenAreaCaptureSession, mode: String) {
+    if !showCursor, !excludeDesktopIcons, !excludeDesktopWidgets, !excludeOwnApplication {
+      let snapshots = NSScreen.screens.compactMap { screen -> FrozenDisplaySnapshot? in
+        guard let displayID = screen.displayID else { return nil }
+        return captureManager.captureFastDisplaySnapshot(
+          displayID: displayID,
+          showCursor: false,
+          excludeDesktopIcons: false,
+          excludeDesktopWidgets: false,
+          excludeOwnApplication: false
+        )
+      }
+      if !snapshots.isEmpty, snapshots.count == NSScreen.screens.count {
+        return (FrozenAreaCaptureSession.fromSnapshots(snapshots), "coregraphics-all")
+      }
+    }
+
+    let shareableContentTask = prefetchedContentTask ?? captureManager.prefetchShareableContent(
+      includeDesktopWindows: excludeDesktopIcons || excludeDesktopWidgets
+    )
+    let session = try await FrozenAreaCaptureSession.prepare(
+      displayIDs: nil,
+      showCursor: showCursor,
+      excludeDesktopIcons: excludeDesktopIcons,
+      excludeDesktopWidgets: excludeDesktopWidgets,
+      excludeOwnApplication: excludeOwnApplication,
+      prefetchedContentTask: shareableContentTask
+    )
+    return (session, "screencapturekit-all")
   }
 
   private func startFrozenAreaSelection(

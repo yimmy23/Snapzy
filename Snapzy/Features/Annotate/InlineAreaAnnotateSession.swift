@@ -10,6 +10,16 @@ import Combine
 import CoreGraphics
 import Foundation
 
+struct InlineAreaAnnotateDisplay: Identifiable {
+  let displayID: CGDirectDisplayID
+  let screenFrame: CGRect
+  let localFrame: CGRect
+  let controlInsets: InlineAreaControlInsets
+  let backdropImage: NSImage
+
+  var id: CGDirectDisplayID { displayID }
+}
+
 @MainActor
 final class InlineAreaAnnotateSession: ObservableObject {
   enum Phase {
@@ -22,35 +32,38 @@ final class InlineAreaAnnotateSession: ObservableObject {
   @Published var isMoveModifierActive = false
 
   let state = AnnotateState(appliesDefaultCanvasPresetOnNewImages: false)
-  let screenFrame: CGRect
-  let controlInsets: InlineAreaControlInsets
-  let backdropImage: NSImage
+  let desktopFrame: CGRect
+  let displays: [InlineAreaAnnotateDisplay]
 
-  private let displayID: CGDirectDisplayID
+  private let primaryDisplayID: CGDirectDisplayID
+  private let screenFramesByDisplayID: [CGDirectDisplayID: CGRect]
   private let frozenSession: FrozenAreaCaptureSession
   private let saveDirectory: URL
   private let outputFormat: ImageFormat
   private let onComplete: (CaptureResult) -> Void
-  private weak var window: NSWindow?
+  private let windows = NSHashTable<NSWindow>.weakObjects()
   private var localKeyMonitor: Any?
   private var globalKeyMonitor: Any?
+  private var selectionLocalMonitor: Any?
+  private var selectionStartPoint: CGPoint?
   private var stateChangeCancellable: AnyCancellable?
   private var didComplete = false
 
   init(
-    displayID: CGDirectDisplayID,
-    screenFrame: CGRect,
-    controlInsets: InlineAreaControlInsets,
-    backdrop: AreaSelectionBackdrop,
+    primaryDisplayID: CGDirectDisplayID,
+    desktopFrame: CGRect,
+    displays: [InlineAreaAnnotateDisplay],
     frozenSession: FrozenAreaCaptureSession,
     saveDirectory: URL,
     outputFormat: ImageFormat,
     onComplete: @escaping (CaptureResult) -> Void
   ) {
-    self.displayID = displayID
-    self.screenFrame = screenFrame
-    self.controlInsets = controlInsets
-    self.backdropImage = NSImage(cgImage: backdrop.image, size: screenFrame.size)
+    self.primaryDisplayID = primaryDisplayID
+    self.desktopFrame = desktopFrame
+    self.displays = displays
+    self.screenFramesByDisplayID = Dictionary(uniqueKeysWithValues: displays.map {
+      ($0.displayID, $0.screenFrame)
+    })
     self.frozenSession = frozenSession
     self.saveDirectory = saveDirectory
     self.outputFormat = outputFormat
@@ -63,8 +76,41 @@ final class InlineAreaAnnotateSession: ObservableObject {
   }
 
   func attach(window: NSWindow) {
-    self.window = window
-    installKeyMonitors()
+    windows.add(window)
+    if localKeyMonitor == nil, globalKeyMonitor == nil {
+      installKeyMonitors()
+    }
+  }
+
+  func beginSelection(at localPoint: CGPoint) {
+    guard phase == .selecting else { return }
+    guard selectionStartPoint == nil else { return }
+    selectionStartPoint = localPoint
+    installSelectionMonitorIfNeeded()
+    updateSelection(to: localPoint)
+  }
+
+  func updateSelection(to localPoint: CGPoint) {
+    guard phase == .selecting, let start = selectionStartPoint else { return }
+    selectionRect = clampedSelectionRect(CGRect(
+      x: min(start.x, localPoint.x),
+      y: min(start.y, localPoint.y),
+      width: abs(localPoint.x - start.x),
+      height: abs(localPoint.y - start.y)
+    ).standardized)
+  }
+
+  func endSelection(at localPoint: CGPoint) {
+    guard phase == .selecting, selectionStartPoint != nil else { return }
+    updateSelection(to: localPoint)
+    removeSelectionMonitor()
+    selectionStartPoint = nil
+
+    guard let rect = selectionRect, rect.width > 5, rect.height > 5 else {
+      selectionRect = nil
+      return
+    }
+    beginAnnotating(with: rect)
   }
 
   func beginAnnotating(with localRect: CGRect) {
@@ -120,7 +166,7 @@ final class InlineAreaAnnotateSession: ObservableObject {
       return true
     }
 
-    if window?.firstResponder is NSTextView {
+    if windows.allObjects.contains(where: { $0.firstResponder is NSTextView }) {
       if event.keyCode == 49 {
         isMoveModifierActive = false
       }
@@ -152,6 +198,18 @@ final class InlineAreaAnnotateSession: ObservableObject {
 
   func windowDidClose() {
     complete(.failure(.cancelled), closeWindow: false)
+  }
+
+  func controlDisplayID(for localRect: CGRect) -> CGDirectDisplayID {
+    let bestMatch = displays
+      .compactMap { display -> (displayID: CGDirectDisplayID, area: CGFloat)? in
+        let intersection = display.localFrame.intersection(localRect)
+        guard !intersection.isEmpty else { return nil }
+        return (display.displayID, intersection.width * intersection.height)
+      }
+      .max { $0.area < $1.area }
+
+    return bestMatch?.displayID ?? primaryDisplayID
   }
 
   func finish() async {
@@ -187,11 +245,28 @@ final class InlineAreaAnnotateSession: ObservableObject {
 
   private func cropImage(for localRect: CGRect) -> NSImage? {
     do {
-      let result = try frozenSession.cropImage(for: AreaSelectionResult(
-        target: .rect(screenRect(for: localRect)),
+      let screenRect = screenRect(for: localRect)
+      let displayIDs = Self.displayIDsIntersecting(
+        screenRect,
+        screenFramesByDisplayID: screenFramesByDisplayID
+      )
+      guard let displayID = Self.primaryDisplayID(
+        for: screenRect,
+        screenFramesByDisplayID: screenFramesByDisplayID,
+        fallback: primaryDisplayID
+      ) else {
+        throw CaptureError.captureFailed(L10n.ScreenCapture.selectionOutsideDisplayBounds)
+      }
+
+      let selection = AreaSelectionResult(
+        target: .rect(screenRect),
         displayID: displayID,
-        mode: .screenshot
-      ))
+        mode: .screenshot,
+        displayIDs: displayIDs.isEmpty ? [displayID] : displayIDs
+      )
+      let result = selection.spansMultipleDisplays
+        ? try frozenSession.cropCompositeImage(for: selection)
+        : try frozenSession.cropImage(for: selection)
       let size = CGSize(
         width: CGFloat(result.image.width) / max(result.scaleFactor, 1),
         height: CGFloat(result.image.height) / max(result.scaleFactor, 1)
@@ -204,20 +279,15 @@ final class InlineAreaAnnotateSession: ObservableObject {
   }
 
   private func screenRect(for localRect: CGRect) -> CGRect {
-    CGRect(
-      x: screenFrame.minX + localRect.minX,
-      y: screenFrame.maxY - localRect.maxY,
-      width: localRect.width,
-      height: localRect.height
-    )
+    Self.screenRect(for: localRect, in: desktopFrame)
   }
 
   private func clampedSelectionRect(_ rect: CGRect) -> CGRect {
     var result = rect
-    result.size.width = min(max(result.width, 1), screenFrame.width)
-    result.size.height = min(max(result.height, 1), screenFrame.height)
-    result.origin.x = min(max(result.minX, 0), max(0, screenFrame.width - result.width))
-    result.origin.y = min(max(result.minY, 0), max(0, screenFrame.height - result.height))
+    result.size.width = min(max(result.width, 1), desktopFrame.width)
+    result.size.height = min(max(result.height, 1), desktopFrame.height)
+    result.origin.x = min(max(result.minX, 0), max(0, desktopFrame.width - result.width))
+    result.origin.y = min(max(result.minY, 0), max(0, desktopFrame.height - result.height))
     return result
   }
 
@@ -244,14 +314,55 @@ final class InlineAreaAnnotateSession: ObservableObject {
     }
   }
 
+  private func installSelectionMonitorIfNeeded() {
+    guard selectionLocalMonitor == nil else { return }
+    selectionLocalMonitor = NSEvent.addLocalMonitorForEvents(
+      matching: [.leftMouseDragged, .leftMouseUp]
+    ) { [weak self] event in
+      switch event.type {
+      case .leftMouseDragged:
+        MainActor.assumeIsolated {
+          guard let self else { return }
+          self.updateSelection(to: self.localDesktopPoint(for: NSEvent.mouseLocation))
+        }
+        return nil
+      case .leftMouseUp:
+        MainActor.assumeIsolated {
+          guard let self else { return }
+          self.endSelection(at: self.localDesktopPoint(for: NSEvent.mouseLocation))
+        }
+        return nil
+      default:
+        return event
+      }
+    }
+  }
+
+  private func removeSelectionMonitor() {
+    if let selectionLocalMonitor {
+      NSEvent.removeMonitor(selectionLocalMonitor)
+      self.selectionLocalMonitor = nil
+    }
+  }
+
+  private func localDesktopPoint(for screenPoint: CGPoint) -> CGPoint {
+    CGPoint(
+      x: screenPoint.x - desktopFrame.minX,
+      y: desktopFrame.maxY - screenPoint.y
+    )
+  }
+
   private func complete(_ result: CaptureResult, closeWindow: Bool = true) {
     guard !didComplete else { return }
     didComplete = true
     isMoveModifierActive = false
     removeKeyMonitors()
+    removeSelectionMonitor()
     frozenSession.invalidate()
     if closeWindow {
-      window?.close()
+      for window in windows.allObjects {
+        window.close()
+      }
     }
     onComplete(result)
   }
@@ -270,5 +381,54 @@ final class InlineAreaAnnotateSession: ObservableObject {
           !flags.contains(.control),
           !flags.contains(.option) else { return false }
     return event.keyCode == 1 || event.charactersIgnoringModifiers?.lowercased() == "s"
+  }
+
+  nonisolated static func desktopFrame(for screenFrames: [CGRect]) -> CGRect {
+    screenFrames.reduce(CGRect.null) { partialResult, frame in
+      partialResult.union(frame)
+    }
+  }
+
+  nonisolated static func localFrame(for screenFrame: CGRect, in desktopFrame: CGRect) -> CGRect {
+    CGRect(
+      x: screenFrame.minX - desktopFrame.minX,
+      y: desktopFrame.maxY - screenFrame.maxY,
+      width: screenFrame.width,
+      height: screenFrame.height
+    )
+  }
+
+  nonisolated static func screenRect(for localRect: CGRect, in desktopFrame: CGRect) -> CGRect {
+    CGRect(
+      x: desktopFrame.minX + localRect.minX,
+      y: desktopFrame.maxY - localRect.maxY,
+      width: localRect.width,
+      height: localRect.height
+    )
+  }
+
+  nonisolated static func displayIDsIntersecting(
+    _ screenRect: CGRect,
+    screenFramesByDisplayID: [CGDirectDisplayID: CGRect]
+  ) -> Set<CGDirectDisplayID> {
+    Set(screenFramesByDisplayID.compactMap { displayID, frame in
+      frame.intersects(screenRect) ? displayID : nil
+    })
+  }
+
+  nonisolated static func primaryDisplayID(
+    for screenRect: CGRect,
+    screenFramesByDisplayID: [CGDirectDisplayID: CGRect],
+    fallback: CGDirectDisplayID?
+  ) -> CGDirectDisplayID? {
+    let bestMatch = screenFramesByDisplayID
+      .compactMap { displayID, frame -> (displayID: CGDirectDisplayID, area: CGFloat)? in
+        let intersection = frame.intersection(screenRect)
+        guard !intersection.isEmpty else { return nil }
+        return (displayID, intersection.width * intersection.height)
+      }
+      .max { $0.area < $1.area }
+
+    return bestMatch?.displayID ?? fallback
   }
 }

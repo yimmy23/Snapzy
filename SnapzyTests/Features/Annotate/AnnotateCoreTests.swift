@@ -163,6 +163,65 @@ final class AnnotateCoreTests: XCTestCase {
     XCTAssertEqual(insets.trailing, 40)
   }
 
+  func testInlineAreaDesktopFrameUsesUnionOfDisplayFrames() {
+    let desktopFrame = InlineAreaAnnotateSession.desktopFrame(for: [
+      CGRect(x: 0, y: 0, width: 300, height: 200),
+      CGRect(x: 300, y: -100, width: 200, height: 160),
+    ])
+
+    XCTAssertEqual(desktopFrame, CGRect(x: 0, y: -100, width: 500, height: 300))
+  }
+
+  func testInlineAreaLocalFrameMapsScreenFrameIntoTopLeftDesktopCoordinates() {
+    let desktopFrame = CGRect(x: -200, y: -100, width: 700, height: 300)
+    let screenFrame = CGRect(x: 300, y: -100, width: 200, height: 160)
+
+    let localFrame = InlineAreaAnnotateSession.localFrame(for: screenFrame, in: desktopFrame)
+
+    XCTAssertEqual(localFrame, CGRect(x: 500, y: 140, width: 200, height: 160))
+  }
+
+  func testInlineAreaScreenRectConvertsDesktopLocalSelectionToScreenCoordinates() {
+    let desktopFrame = CGRect(x: -200, y: -100, width: 700, height: 300)
+    let localRect = CGRect(x: 250, y: 40, width: 120, height: 80)
+
+    let screenRect = InlineAreaAnnotateSession.screenRect(for: localRect, in: desktopFrame)
+
+    XCTAssertEqual(screenRect, CGRect(x: 50, y: 80, width: 120, height: 80))
+  }
+
+  func testInlineAreaDisplayIDsIntersectingSpanningSelectionReturnsAllTouchedDisplays() {
+    let screenFramesByDisplayID: [CGDirectDisplayID: CGRect] = [
+      1: CGRect(x: 0, y: 0, width: 200, height: 200),
+      2: CGRect(x: 200, y: 0, width: 200, height: 200),
+      3: CGRect(x: 0, y: 200, width: 200, height: 200),
+    ]
+    let selection = CGRect(x: 150, y: 40, width: 120, height: 80)
+
+    let displayIDs = InlineAreaAnnotateSession.displayIDsIntersecting(
+      selection,
+      screenFramesByDisplayID: screenFramesByDisplayID
+    )
+
+    XCTAssertEqual(displayIDs, [1, 2])
+  }
+
+  func testInlineAreaPrimaryDisplayIDUsesLargestIntersection() {
+    let screenFramesByDisplayID: [CGDirectDisplayID: CGRect] = [
+      1: CGRect(x: 0, y: 0, width: 200, height: 200),
+      2: CGRect(x: 200, y: 0, width: 200, height: 200),
+    ]
+    let selection = CGRect(x: 170, y: 40, width: 160, height: 80)
+
+    let displayID = InlineAreaAnnotateSession.primaryDisplayID(
+      for: selection,
+      screenFramesByDisplayID: screenFramesByDisplayID,
+      fallback: 1
+    )
+
+    XCTAssertEqual(displayID, 2)
+  }
+
   @MainActor
   func testAnnotateState_undoAfterNewTextCreationRemovesTextAnnotation() {
     let state = makeAnnotateState()

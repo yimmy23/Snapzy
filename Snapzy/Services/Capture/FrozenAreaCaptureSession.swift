@@ -19,6 +19,7 @@ nonisolated struct FrozenDisplaySnapshot {
 nonisolated struct FrozenAreaCropResult {
   let image: CGImage
   let scaleFactor: CGFloat
+  let screenRect: CGRect
 }
 
 nonisolated final class FrozenAreaCaptureSession {
@@ -149,21 +150,51 @@ nonisolated final class FrozenAreaCaptureSession {
       throw CaptureError.captureFailed(L10n.ScreenCapture.failedToCropCapturedImage)
     }
 
-    return FrozenAreaCropResult(image: croppedImage, scaleFactor: snapshot.scaleFactor)
+    let alignedScreenRect = CGRect(
+      x: snapshot.screenFrame.origin.x + alignedRect.origin.x,
+      y: snapshot.screenFrame.origin.y + alignedRect.origin.y,
+      width: alignedRect.width,
+      height: alignedRect.height
+    )
+
+    return FrozenAreaCropResult(
+      image: croppedImage,
+      scaleFactor: snapshot.scaleFactor,
+      screenRect: alignedScreenRect
+    )
   }
 
   func cropCompositeImage(for selection: AreaSelectionResult) throws -> FrozenAreaCropResult {
-    let selectionRect = selection.rect
+    let requestedSelectionRect = selection.rect
     let requestedDisplayIDs = selection.displayIDs.isEmpty ? [selection.displayID] : selection.displayIDs
-    let matchingSnapshots = snapshots.values.filter { snapshot in
-      requestedDisplayIDs.contains(snapshot.displayID) && snapshot.screenFrame.intersects(selectionRect)
+    let candidateSnapshots = snapshots.values.filter { snapshot in
+      requestedDisplayIDs.contains(snapshot.displayID) && snapshot.screenFrame.intersects(requestedSelectionRect)
     }
 
+    guard !candidateSnapshots.isEmpty else {
+      throw CaptureError.captureFailed(L10n.ScreenCapture.selectionOutsideDisplayBounds)
+    }
+
+    let outputScaleFactor = candidateSnapshots.map(\.scaleFactor).max() ?? 1.0
+    let captureBounds = candidateSnapshots.reduce(CGRect.null) { partialResult, snapshot in
+      partialResult.union(snapshot.screenFrame)
+    }
+    let selectionRect = Self.pixelAlignedRect(
+      requestedSelectionRect.intersection(captureBounds),
+      scaleFactor: outputScaleFactor,
+      bounds: captureBounds
+    )
+    guard !selectionRect.isEmpty else {
+      throw CaptureError.captureFailed(L10n.ScreenCapture.selectionOutsideDisplayBounds)
+    }
+
+    let matchingSnapshots = candidateSnapshots.filter { snapshot in
+      snapshot.screenFrame.intersects(selectionRect)
+    }
     guard !matchingSnapshots.isEmpty else {
       throw CaptureError.captureFailed(L10n.ScreenCapture.selectionOutsideDisplayBounds)
     }
 
-    let outputScaleFactor = matchingSnapshots.map(\.scaleFactor).max() ?? 1.0
     let outputWidth = max(1, Int((selectionRect.width * outputScaleFactor).rounded()))
     let outputHeight = max(1, Int((selectionRect.height * outputScaleFactor).rounded()))
     let colorSpace = matchingSnapshots
@@ -244,7 +275,11 @@ nonisolated final class FrozenAreaCaptureSession {
       throw CaptureError.captureFailed(L10n.ScreenCapture.failedToCropCapturedImage)
     }
 
-    return FrozenAreaCropResult(image: image, scaleFactor: outputScaleFactor)
+    return FrozenAreaCropResult(
+      image: image,
+      scaleFactor: outputScaleFactor,
+      screenRect: selectionRect
+    )
   }
 
   func invalidate() {

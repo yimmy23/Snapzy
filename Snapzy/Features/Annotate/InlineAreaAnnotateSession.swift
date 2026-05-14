@@ -27,6 +27,11 @@ final class InlineAreaAnnotateSession: ObservableObject {
     case annotating
   }
 
+  private struct InlineAreaCrop {
+    let image: NSImage
+    let localRect: CGRect
+  }
+
   @Published var phase: Phase = .selecting
   @Published var selectionRect: CGRect?
   @Published var isMoveModifierActive = false
@@ -116,35 +121,39 @@ final class InlineAreaAnnotateSession: ObservableObject {
   func beginAnnotating(with localRect: CGRect) {
     let clampedRect = clampedSelectionRect(localRect.standardized)
     guard clampedRect.width > 5, clampedRect.height > 5,
-          let image = cropImage(for: clampedRect) else { return }
+          let crop = cropImage(for: clampedRect) else { return }
 
-    selectionRect = clampedRect
-    state.loadImage(image, url: nil)
+    selectionRect = crop.localRect
+    state.loadImage(crop.image, url: nil)
     state.selectedTool = .selection
     phase = .annotating
   }
 
   func moveSelection(to localRect: CGRect, refreshImage: Bool) {
     let clampedRect = clampedSelectionRect(localRect.standardized)
-    selectionRect = clampedRect
-    guard refreshImage, let image = cropImage(for: clampedRect) else { return }
-    state.replaceSourceImagePreservingAnnotations(image)
+    guard refreshImage else {
+      selectionRect = clampedRect
+      return
+    }
+    guard let crop = cropImage(for: clampedRect) else { return }
+    selectionRect = crop.localRect
+    state.replaceSourceImagePreservingAnnotations(crop.image)
   }
 
   func resizeSelection(to localRect: CGRect, previousRect: CGRect) {
     let clampedRect = clampedSelectionRect(localRect.standardized)
     guard clampedRect.width > 5,
           clampedRect.height > 5,
-          let image = cropImage(for: clampedRect) else { return }
+          let crop = cropImage(for: clampedRect) else { return }
 
     let standardizedPreviousRect = previousRect.standardized
     let annotationOffset = CGPoint(
-      x: standardizedPreviousRect.minX - clampedRect.minX,
-      y: standardizedPreviousRect.minY - clampedRect.minY
+      x: standardizedPreviousRect.minX - crop.localRect.minX,
+      y: standardizedPreviousRect.minY - crop.localRect.minY
     )
 
-    selectionRect = clampedRect
-    state.replaceSourceImagePreservingAnnotations(image, annotationOffset: annotationOffset)
+    selectionRect = crop.localRect
+    state.replaceSourceImagePreservingAnnotations(crop.image, annotationOffset: annotationOffset)
   }
 
   func clampedSelectionPreview(for localRect: CGRect) -> CGRect {
@@ -214,8 +223,9 @@ final class InlineAreaAnnotateSession: ObservableObject {
 
   func finish() async {
     guard phase == .annotating else { return }
-    if let selectionRect, let image = cropImage(for: selectionRect) {
-      state.replaceSourceImagePreservingAnnotations(image)
+    if let selectionRect, let crop = cropImage(for: selectionRect) {
+      self.selectionRect = crop.localRect
+      state.replaceSourceImagePreservingAnnotations(crop.image)
     }
 
     guard let renderedImage = AnnotateExporter.renderFinalImage(state: state),
@@ -243,7 +253,7 @@ final class InlineAreaAnnotateSession: ObservableObject {
     SoundManager.play("Pop")
   }
 
-  private func cropImage(for localRect: CGRect) -> NSImage? {
+  private func cropImage(for localRect: CGRect) -> InlineAreaCrop? {
     do {
       let screenRect = screenRect(for: localRect)
       let displayIDs = Self.displayIDsIntersecting(
@@ -267,11 +277,9 @@ final class InlineAreaAnnotateSession: ObservableObject {
       let result = selection.spansMultipleDisplays
         ? try frozenSession.cropCompositeImage(for: selection)
         : try frozenSession.cropImage(for: selection)
-      let size = CGSize(
-        width: CGFloat(result.image.width) / max(result.scaleFactor, 1),
-        height: CGFloat(result.image.height) / max(result.scaleFactor, 1)
-      )
-      return NSImage(cgImage: result.image, size: size)
+      let image = NSImage(cgImage: result.image, size: result.screenRect.size)
+      let localRect = Self.localRect(for: result.screenRect, in: desktopFrame)
+      return InlineAreaCrop(image: image, localRect: clampedSelectionRect(localRect))
     } catch {
       DiagnosticLogger.shared.logError(.capture, error, "Inline area annotate crop failed")
       return nil
@@ -404,6 +412,15 @@ final class InlineAreaAnnotateSession: ObservableObject {
       y: desktopFrame.maxY - localRect.maxY,
       width: localRect.width,
       height: localRect.height
+    )
+  }
+
+  nonisolated static func localRect(for screenRect: CGRect, in desktopFrame: CGRect) -> CGRect {
+    CGRect(
+      x: screenRect.minX - desktopFrame.minX,
+      y: desktopFrame.maxY - screenRect.maxY,
+      width: screenRect.width,
+      height: screenRect.height
     )
   }
 

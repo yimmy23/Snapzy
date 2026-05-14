@@ -190,6 +190,18 @@ final class AnnotateCoreTests: XCTestCase {
     XCTAssertEqual(screenRect, CGRect(x: 50, y: 80, width: 120, height: 80))
   }
 
+  func testInlineAreaLocalRectConvertsAlignedScreenRectToDesktopLocalCoordinates() {
+    let desktopFrame = CGRect(x: -200, y: -100, width: 700, height: 300)
+    let screenRect = CGRect(x: 50, y: 80, width: 120.5, height: 80.5)
+
+    let localRect = InlineAreaAnnotateSession.localRect(for: screenRect, in: desktopFrame)
+
+    XCTAssertEqual(localRect.origin.x, 250.0, accuracy: 0.0001)
+    XCTAssertEqual(localRect.origin.y, 39.5, accuracy: 0.0001)
+    XCTAssertEqual(localRect.width, 120.5, accuracy: 0.0001)
+    XCTAssertEqual(localRect.height, 80.5, accuracy: 0.0001)
+  }
+
   func testInlineAreaDisplayIDsIntersectingSpanningSelectionReturnsAllTouchedDisplays() {
     let screenFramesByDisplayID: [CGDirectDisplayID: CGRect] = [
       1: CGRect(x: 0, y: 0, width: 200, height: 200),

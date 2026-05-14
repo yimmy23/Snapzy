@@ -165,6 +165,7 @@ Crop and Mockup are **not** available in the inline overlay (full editor only).
 - The global shortcut for Capture Markup is enabled by default for new installs. Users can turn it off in Preferences → Shortcuts. The default key is `⇧⌘7`.
 - The overlay reuses `AnnotateState`, `CanvasDrawingView`, and `AnnotateExporter` — no duplicated annotation logic.
 - Moving or resizing the selected region refreshes the underlying cropped image while **preserving existing annotations** via `replaceSourceImagePreservingAnnotations(_:annotationOffset:)`.
+- Cropped source images return their pixel-aligned screen rect, and Capture Markup updates the visible selection to that rect so Retina and external-display previews stay 1:1 with the backing bitmap instead of being resampled.
 - Single-display selections still use the per-display crop path; cross-display selections use the same composite crop path as frozen area capture.
 - Finishing routes through the normal screenshot post-capture pipeline, so Quick Access, clipboard copy, auto-open, and history all behave identically to a standard area screenshot.
 - Keyboard handling uses both local and global `NSEvent` monitors to catch `Space`, `Enter`, `Esc`, and `Cmd+S` reliably even when the app is not frontmost.

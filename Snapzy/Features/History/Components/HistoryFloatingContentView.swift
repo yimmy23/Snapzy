@@ -23,6 +23,7 @@ struct HistoryFloatingContentView: View {
   @State private var compactSelectionRevealTrigger = 0
   @State private var isExpandedGridReady = false
   @State private var expandedGridWarmupTask: Task<Void, Never>?
+  @StateObject private var scrollController = HistoryScrollController()
 
   private var sortedRecords: [CaptureHistoryRecord] {
     // CaptureHistoryStore already publishes rows ordered by capturedAt desc.
@@ -433,7 +434,15 @@ struct HistoryFloatingContentView: View {
       .padding(.horizontal, 6)
       .padding(.top, 4)
       .padding(.bottom, 88)
+
+      HistoryScrollViewReader(controller: scrollController)
+        .frame(height: 0)
     }
+    .overlay(
+      HistoryFloatingScrollbar(controller: scrollController, scale: resolvedPanelScale)
+        .padding(.trailing, 2),
+      alignment: .trailing
+    )
   }
 
   private var expandedGridPlaceholder: some View {

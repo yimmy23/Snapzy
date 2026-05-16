@@ -472,6 +472,8 @@ private struct DragFallbackSignature: Equatable {
   let editorMode: String
   let cropRect: String?
   let backgroundStyle: String
+  let isBlurredBackgroundEnabled: Bool
+  let blurredBackgroundEffect: String
   let padding: Int64
   let inset: Int64
   let autoBalance: Bool
@@ -496,6 +498,8 @@ private struct DragFallbackSignature: Equatable {
     editorMode = state.editorMode.rawValue
     cropRect = state.cropRect.map(Self.rectSignature)
     backgroundStyle = Self.backgroundStyleSignature(state.backgroundStyle)
+    isBlurredBackgroundEnabled = state.isBlurredBackgroundEnabled
+    blurredBackgroundEffect = state.blurredBackgroundEffect.rawValue
     padding = Self.quantize(state.padding)
     inset = Self.quantize(state.inset)
     autoBalance = state.autoBalance

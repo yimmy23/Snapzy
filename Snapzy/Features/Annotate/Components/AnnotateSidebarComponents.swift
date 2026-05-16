@@ -216,6 +216,60 @@ struct BlurredPlaceholder: View {
   }
 }
 
+struct BlurredBackgroundEffectButton: View {
+  let effect: BlurredBackgroundEffect
+  let backgroundStyle: BackgroundStyle
+  let previewImage: NSImage?
+  let isSelected: Bool
+  let action: () -> Void
+
+  var body: some View {
+    Button(action: action) {
+      ZStack {
+        previewLayer
+
+        effect.tintColor
+          .opacity(effect.tintOpacity)
+      }
+      .clipped()
+      .sidebarItemStyle(isSelected: isSelected)
+    }
+    .buttonStyle(.plain)
+    .help(effect.displayName)
+  }
+
+  @ViewBuilder
+  private var previewLayer: some View {
+    switch backgroundStyle {
+    case .solidColor(let color):
+      color
+        .brightness(effect.brightness)
+    case .wallpaper, .blurred:
+      if let previewImage {
+        Image(nsImage: previewImage)
+          .resizable()
+          .aspectRatio(1, contentMode: .fill)
+          .blur(radius: min(effect.blurRadius / 4, 8))
+          .saturation(effect.saturation)
+          .brightness(effect.brightness)
+      } else {
+        placeholderLayer
+      }
+    case .none, .gradient:
+      placeholderLayer
+    }
+  }
+
+  private var placeholderLayer: some View {
+    LinearGradient(
+      colors: [.secondary.opacity(0.25), .secondary.opacity(0.08)],
+      startPoint: .topLeading,
+      endPoint: .bottomTrailing
+    )
+    .blur(radius: min(effect.blurRadius / 4, 8))
+  }
+}
+
 // MARK: - Color Swatch Grid
 
 struct ColorSwatchGrid: View {

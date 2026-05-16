@@ -33,6 +33,8 @@ struct AnnotateCanvasPreset: Identifiable, Codable, Equatable {
 
 struct AnnotateCanvasPresetPayload: Codable, Equatable {
   var backgroundStyle: CodableBackgroundStyle
+  var isBlurredBackgroundEnabled: Bool
+  var blurredBackgroundEffect: BlurredBackgroundEffect
   var padding: CGFloat
   var shadowIntensity: CGFloat
   var cornerRadius: CGFloat
@@ -41,6 +43,8 @@ struct AnnotateCanvasPresetPayload: Codable, Equatable {
 
   init(
     backgroundStyle: CodableBackgroundStyle,
+    isBlurredBackgroundEnabled: Bool = false,
+    blurredBackgroundEffect: BlurredBackgroundEffect = .soft,
     padding: CGFloat,
     shadowIntensity: CGFloat,
     cornerRadius: CGFloat,
@@ -48,6 +52,8 @@ struct AnnotateCanvasPresetPayload: Codable, Equatable {
     aspectRatioOrientation: AspectRatioOrientation = .horizontal
   ) {
     self.backgroundStyle = backgroundStyle
+    self.isBlurredBackgroundEnabled = isBlurredBackgroundEnabled
+    self.blurredBackgroundEffect = blurredBackgroundEffect
     self.padding = padding
     self.shadowIntensity = shadowIntensity
     self.cornerRadius = cornerRadius
@@ -57,6 +63,8 @@ struct AnnotateCanvasPresetPayload: Codable, Equatable {
 
   enum CodingKeys: String, CodingKey {
     case backgroundStyle
+    case isBlurredBackgroundEnabled
+    case blurredBackgroundEffect
     case padding
     case shadowIntensity
     case cornerRadius
@@ -67,6 +75,10 @@ struct AnnotateCanvasPresetPayload: Codable, Equatable {
   init(from decoder: Decoder) throws {
     let container = try decoder.container(keyedBy: CodingKeys.self)
     backgroundStyle = try container.decode(CodableBackgroundStyle.self, forKey: .backgroundStyle)
+    isBlurredBackgroundEnabled = try container.decodeIfPresent(Bool.self, forKey: .isBlurredBackgroundEnabled)
+      ?? (backgroundStyle.kind == .blurred)
+    let rawBlurredBackgroundEffect = try container.decodeIfPresent(String.self, forKey: .blurredBackgroundEffect)
+    blurredBackgroundEffect = rawBlurredBackgroundEffect.flatMap(BlurredBackgroundEffect.init(rawValue:)) ?? .soft
     padding = try container.decode(CGFloat.self, forKey: .padding)
     shadowIntensity = try container.decode(CGFloat.self, forKey: .shadowIntensity)
     cornerRadius = try container.decode(CGFloat.self, forKey: .cornerRadius)
@@ -79,6 +91,8 @@ struct AnnotateCanvasPresetPayload: Codable, Equatable {
   func encode(to encoder: Encoder) throws {
     var container = encoder.container(keyedBy: CodingKeys.self)
     try container.encode(backgroundStyle, forKey: .backgroundStyle)
+    try container.encode(isBlurredBackgroundEnabled, forKey: .isBlurredBackgroundEnabled)
+    try container.encode(blurredBackgroundEffect.rawValue, forKey: .blurredBackgroundEffect)
     try container.encode(padding, forKey: .padding)
     try container.encode(shadowIntensity, forKey: .shadowIntensity)
     try container.encode(cornerRadius, forKey: .cornerRadius)
@@ -90,7 +104,14 @@ struct AnnotateCanvasPresetPayload: Codable, Equatable {
     _ other: AnnotateCanvasPresetPayload,
     tolerance: CGFloat = 0.0001
   ) -> Bool {
-    backgroundStyle == other.backgroundStyle &&
+    let blurEnabledMatches = isBlurredBackgroundEnabled == other.isBlurredBackgroundEnabled
+    let blurredEffectMatches = isBlurredBackgroundEnabled
+      ? blurredBackgroundEffect == other.blurredBackgroundEffect
+      : true
+
+    return backgroundStyle == other.backgroundStyle &&
+      blurEnabledMatches &&
+      blurredEffectMatches &&
       abs(padding - other.padding) <= tolerance &&
       abs(shadowIntensity - other.shadowIntensity) <= tolerance &&
       abs(cornerRadius - other.cornerRadius) <= tolerance &&

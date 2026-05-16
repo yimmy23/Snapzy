@@ -3908,6 +3908,31 @@ enum L10n {
       defaultValue: "Smooth Gaussian blur similar to CSS filter",
       comment: "Description shown for the gaussian blur style"
     )
+    static let blurredBackground = string(
+      "annotate.blurred-background",
+      defaultValue: "Blurred",
+      comment: "Section title for annotate blurred background controls"
+    )
+    static let blurredBackgroundSoft = string(
+      "annotate.blurred-background-soft",
+      defaultValue: "Soft",
+      comment: "Label for the soft blurred background preset"
+    )
+    static let blurredBackgroundFrosted = string(
+      "annotate.blurred-background-frosted",
+      defaultValue: "Frosted",
+      comment: "Label for the frosted blurred background preset"
+    )
+    static let blurredBackgroundVivid = string(
+      "annotate.blurred-background-vivid",
+      defaultValue: "Vivid",
+      comment: "Label for the vivid blurred background preset"
+    )
+    static let blurredBackgroundDim = string(
+      "annotate.blurred-background-dim",
+      defaultValue: "Dim",
+      comment: "Label for the dim blurred background preset"
+    )
     static let watermarkSingle = string(
       "annotate.watermark-single",
       defaultValue: "Single",

@@ -11,6 +11,8 @@ import SwiftUI
 private struct AnnotateSidebarSnapshot: Equatable {
   let editorMode: AnnotateState.EditorMode
   let backgroundStyle: BackgroundStyle
+  let isBlurredBackgroundEnabled: Bool
+  let blurredBackgroundEffect: BlurredBackgroundEffect
   let padding: CGFloat
   let previewPadding: CGFloat?
   let shadowIntensity: CGFloat
@@ -28,6 +30,8 @@ private struct AnnotateSidebarSnapshot: Equatable {
   init(state: AnnotateState) {
     editorMode = state.editorMode
     backgroundStyle = state.backgroundStyle
+    isBlurredBackgroundEnabled = state.isBlurredBackgroundEnabled
+    blurredBackgroundEffect = state.blurredBackgroundEffect
     padding = state.padding
     previewPadding = state.previewPadding
     shadowIntensity = state.shadowIntensity
@@ -69,6 +73,9 @@ struct AnnotateSidebarView: View, Equatable {
 
         // Wallpaper section
         wallpaperSection
+
+        // Blurred background section
+        blurredSection
 
         // Compact color section
         colorSection
@@ -438,6 +445,10 @@ struct AnnotateSidebarView: View, Equatable {
 
   private var wallpaperSection: some View {
     SidebarWallpaperSection(state: state)
+  }
+
+  private var blurredSection: some View {
+    SidebarBlurredSection(state: state)
   }
 
   private var colorSection: some View {

@@ -141,15 +141,54 @@ struct SidebarWallpaperSection: View {
 // MARK: - Blurred Section
 
 struct SidebarBlurredSection: View {
+  @ObservedObject var state: AnnotateState
+
   var body: some View {
     VStack(alignment: .leading, spacing: Spacing.sm) {
-      SidebarSectionHeader(title: L10n.AnnotateUI.blurType)
+      SidebarSectionHeader(title: L10n.AnnotateUI.blurredBackground)
 
-      HStack(spacing: GridConfig.gap) {
-        BlurredPlaceholder()
-        BlurredPlaceholder()
+      LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: GridConfig.gap), count: GridConfig.backgroundColumns), spacing: GridConfig.gap) {
+        ForEach(BlurredBackgroundEffect.allCases) { effect in
+          BlurredBackgroundEffectButton(
+            effect: effect,
+            backgroundStyle: state.backgroundStyle,
+            previewImage: previewImage,
+            isSelected: isSelected(effect)
+          ) {
+            select(effect)
+          }
+          .disabled(!state.backgroundStyle.supportsBlurredBackgroundEffect)
+        }
       }
     }
+  }
+
+  private func isSelected(_ effect: BlurredBackgroundEffect) -> Bool {
+    state.isBlurredBackgroundEffectActive && state.blurredBackgroundEffect == effect
+  }
+
+  private func select(_ effect: BlurredBackgroundEffect) {
+    guard state.backgroundStyle.supportsBlurredBackgroundEffect else { return }
+    if isSelected(effect) {
+      if case .blurred(let url) = state.backgroundStyle {
+        state.backgroundStyle = .wallpaper(url)
+      }
+      state.isBlurredBackgroundEnabled = false
+      return
+    }
+    if state.padding <= 0 {
+      state.padding = 24
+    }
+    if case .blurred(let url) = state.backgroundStyle {
+      state.backgroundStyle = .wallpaper(url)
+    }
+    state.blurredBackgroundEffect = effect
+    state.isBlurredBackgroundEnabled = true
+  }
+
+  private var previewImage: NSImage? {
+    guard let url = state.backgroundStyle.blurredEffectImageURL else { return nil }
+    return state.cachedBackgroundImage(for: url)
   }
 }
 

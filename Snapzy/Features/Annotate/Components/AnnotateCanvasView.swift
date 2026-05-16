@@ -362,38 +362,19 @@ struct AnnotateCanvasView: View {
               x: 0,
               y: 10
             )
-        } else if let nsImage = state.cachedBackgroundImage {
-          // Use CACHED image instead of loading from disk every render
-          Image(nsImage: nsImage)
-            .resizable()
-            .aspectRatio(contentMode: .fill)
-            .frame(width: width, height: height)
-            .clipped()
+        } else {
+          wallpaperLayer(url: url, width: width, height: height)
         }
 
       case .blurred(let url):
         if url.scheme == "preset" {
           EmptyView()
-        } else if let nsImage = state.cachedBlurredImage {
-          // Use PRE-COMPUTED blur (no real-time processing)
-          Image(nsImage: nsImage)
-            .resizable()
-            .aspectRatio(contentMode: .fill)
-            .frame(width: width, height: height)
-            .clipped()
-        } else if let nsImage = state.cachedBackgroundImage {
-          // Fallback: show non-blurred while computing
-          Image(nsImage: nsImage)
-            .resizable()
-            .aspectRatio(contentMode: .fill)
-            .frame(width: width, height: height)
-            .clipped()
+        } else {
+          wallpaperLayer(url: url, width: width, height: height, forceBlurred: true)
         }
 
       case .solidColor(let color):
-        Rectangle()
-          .fill(color)
-          .frame(width: width, height: height)
+        solidColorLayer(color, width: width, height: height)
           .shadow(
             color: .black.opacity(currentShadowIntensity),
             radius: 20,
@@ -403,6 +384,70 @@ struct AnnotateCanvasView: View {
       }
     }
     .drawingGroup() // Rasterize to Metal texture for performance
+  }
+
+  @ViewBuilder
+  private func wallpaperLayer(
+    url: URL,
+    width: CGFloat,
+    height: CGFloat,
+    forceBlurred: Bool = false
+  ) -> some View {
+    let shouldBlur = forceBlurred || state.isBlurredBackgroundEffectActive
+
+    if shouldBlur, let nsImage = state.cachedBlurredBackgroundImage(for: url) {
+      blurredImageLayer(nsImage, width: width, height: height, appliesLiveEffect: false)
+    } else if shouldBlur, let nsImage = state.cachedBackgroundImage(for: url) {
+      blurredImageLayer(nsImage, width: width, height: height, appliesLiveEffect: true)
+    } else if let nsImage = state.cachedBackgroundImage(for: url) {
+      Image(nsImage: nsImage)
+        .resizable()
+        .aspectRatio(contentMode: .fill)
+        .frame(width: width, height: height)
+        .clipped()
+    }
+  }
+
+  private func solidColorLayer(
+    _ color: Color,
+    width: CGFloat,
+    height: CGFloat
+  ) -> some View {
+    let effect = state.isBlurredBackgroundEffectActive ? state.blurredBackgroundEffect : nil
+    return Rectangle()
+      .fill(color)
+      .frame(width: width, height: height)
+      .brightness(effect?.brightness ?? 0)
+      .overlay((effect?.tintColor ?? .clear).opacity(effect?.tintOpacity ?? 0))
+  }
+
+  @ViewBuilder
+  private func blurredImageLayer(
+    _ nsImage: NSImage,
+    width: CGFloat,
+    height: CGFloat,
+    appliesLiveEffect: Bool
+  ) -> some View {
+    let effect = state.blurredBackgroundEffect
+
+    if appliesLiveEffect {
+      Image(nsImage: nsImage)
+        .resizable()
+        .aspectRatio(contentMode: .fill)
+        .frame(width: width, height: height)
+        .blur(radius: effect.blurRadius)
+        .saturation(effect.saturation)
+        .brightness(effect.brightness)
+        .overlay(effect.tintColor.opacity(effect.tintOpacity))
+        .clipped()
+    } else {
+      Image(nsImage: nsImage)
+        .resizable()
+        .aspectRatio(contentMode: .fill)
+        .frame(width: width, height: height)
+        .overlay(effect.tintColor.opacity(effect.tintOpacity))
+        .clipped()
+    }
   }
 
   // MARK: - Image Layer

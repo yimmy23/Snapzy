@@ -7,6 +7,7 @@
 
 import AppKit
 import Combine
+import CoreImage
 import SwiftUI
 
 /// Central state for annotation window
@@ -292,13 +293,36 @@ final class AnnotateState: ObservableObject {
 
   @Published var backgroundStyle: BackgroundStyle = .none {
     didSet {
-      // Pre-cache wallpaper/blurred image when style changes
+      // Pre-cache image-backed backgrounds when style changes.
       switch backgroundStyle {
       case .wallpaper(let url), .blurred(let url):
         loadBackgroundImage(from: url)
       default:
         cachedBackgroundImage = nil
+        cachedBlurredImage = nil
+        cachedBackgroundURL = nil
+        loadingBackgroundURL = nil
       }
+
+      if backgroundStyle.supportsBlurredBackgroundEffect == false && isBlurredBackgroundEnabled {
+        isBlurredBackgroundEnabled = false
+      } else {
+        refreshCachedBlurredBackgroundImage()
+      }
+      handleCanvasEffectDidChange()
+    }
+  }
+
+  @Published var isBlurredBackgroundEnabled: Bool = false {
+    didSet {
+      refreshCachedBlurredBackgroundImage()
+      handleCanvasEffectDidChange()
+    }
+  }
+
+  @Published var blurredBackgroundEffect: BlurredBackgroundEffect = .soft {
+    didSet {
+      refreshCachedBlurredBackgroundImage()
       handleCanvasEffectDidChange()
     }
   }
@@ -310,20 +334,40 @@ final class AnnotateState: ObservableObject {
   /// Cached pre-computed blurred image (avoids real-time blur on every frame)
   @Published private(set) var cachedBlurredImage: NSImage?
 
+  /// URL represented by the current cached background image.
+  private var cachedBackgroundURL: URL?
+
   /// Track the URL being loaded to prevent race conditions
   private var loadingBackgroundURL: URL?
+
+  var isBlurredBackgroundEffectActive: Bool {
+    guard backgroundStyle.supportsBlurredBackgroundEffect else { return false }
+    if case .blurred = backgroundStyle {
+      return true
+    }
+    return isBlurredBackgroundEnabled
+  }
+
+  private var activeBlurredBackgroundURL: URL? {
+    guard isBlurredBackgroundEffectActive else { return nil }
+    return backgroundStyle.blurredEffectImageURL
+  }
 
   private func loadBackgroundImage(from url: URL) {
     // Skip preset URLs (handled via gradient)
     guard url.scheme != "preset" else {
       cachedBackgroundImage = nil
       cachedBlurredImage = nil
+      cachedBackgroundURL = nil
       loadingBackgroundURL = nil
       return
     }
 
     // Track which URL we're loading to prevent race conditions
     loadingBackgroundURL = url
+    cachedBackgroundImage = nil
+    cachedBlurredImage = nil
+    cachedBackgroundURL = nil
 
     // Use preview cache (2048px) instead of full resolution for performance
     SystemWallpaperManager.shared.loadPreviewImage(for: url) { [weak self] image in
@@ -332,14 +376,12 @@ final class AnnotateState: ObservableObject {
         guard self?.loadingBackgroundURL == url else { return }
 
         self?.cachedBackgroundImage = image
+        self?.cachedBackgroundURL = url
         self?.loadingBackgroundURL = nil
 
-        // Pre-compute blurred variant if .blurred style is active
-        if case .blurred = self?.backgroundStyle {
-          self?.cachedBlurredImage = self?.applyGaussianBlur(
-            to: image,
-            radius: WallpaperQualityConfig.blurRadius
-          )
+        // Pre-compute blurred variant if the selected background uses this effect.
+        if self?.activeBlurredBackgroundURL == url {
+          self?.cachedBlurredImage = self?.makeBlurredBackgroundImage(from: image)
         } else {
           self?.cachedBlurredImage = nil
         }
@@ -347,17 +389,63 @@ final class AnnotateState: ObservableObject {
     }
   }
 
-  /// Apply CIGaussianBlur to NSImage (one-time computation, GPU-accelerated)
-  private func applyGaussianBlur(to image: NSImage?, radius: CGFloat) -> NSImage? {
+  private func refreshCachedBlurredBackgroundImage() {
+    guard let url = activeBlurredBackgroundURL else {
+      cachedBlurredImage = nil
+      return
+    }
+    guard let cachedBackgroundImage = cachedBackgroundImage(for: url) else {
+      cachedBlurredImage = nil
+      return
+    }
+    cachedBlurredImage = makeBlurredBackgroundImage(from: cachedBackgroundImage)
+  }
+
+  func backgroundImage(for url: URL) -> NSImage? {
+    if cachedBackgroundURL == url, let cachedBackgroundImage {
+      return cachedBackgroundImage
+    }
+    return SandboxFileAccessManager.shared.withScopedAccess(to: url, {
+      NSImage(contentsOf: url)
+    })
+  }
+
+  func cachedBackgroundImage(for url: URL) -> NSImage? {
+    guard cachedBackgroundURL == url else { return nil }
+    return cachedBackgroundImage
+  }
+
+  func cachedBlurredBackgroundImage(for url: URL) -> NSImage? {
+    guard activeBlurredBackgroundURL == url else { return nil }
+    return cachedBlurredImage
+  }
+
+  func blurredBackgroundImage(for url: URL) -> NSImage? {
+    if activeBlurredBackgroundURL == url,
+       let cachedBlurredImage {
+      return cachedBlurredImage
+    }
+    return makeBlurredBackgroundImage(from: backgroundImage(for: url))
+  }
+
+  /// Apply CI filters to an NSImage once, then cache the result for preview/export reuse.
+  func makeBlurredBackgroundImage(from image: NSImage?) -> NSImage? {
     guard let image = image,
           let tiffData = image.tiffRepresentation,
           let ciImage = CIImage(data: tiffData) else { return nil }
 
-    let filter = CIFilter(name: "CIGaussianBlur")
-    filter?.setValue(ciImage, forKey: kCIInputImageKey)
-    filter?.setValue(radius, forKey: kCIInputRadiusKey)
+    let blurFilter = CIFilter(name: "CIGaussianBlur")
+    blurFilter?.setValue(ciImage.clampedToExtent(), forKey: kCIInputImageKey)
+    blurFilter?.setValue(blurredBackgroundEffect.blurRadius, forKey: kCIInputRadiusKey)
 
-    guard let output = filter?.outputImage else { return nil }
+    guard let blurredOutput = blurFilter?.outputImage else { return nil }
+
+    let colorFilter = CIFilter(name: "CIColorControls")
+    colorFilter?.setValue(blurredOutput, forKey: kCIInputImageKey)
+    colorFilter?.setValue(blurredBackgroundEffect.saturation, forKey: kCIInputSaturationKey)
+    colorFilter?.setValue(blurredBackgroundEffect.brightness, forKey: kCIInputBrightnessKey)
+
+    guard let output = colorFilter?.outputImage else { return nil }
 
     // Crop to original bounds (blur extends edges)
     let croppedOutput = output.cropped(to: ciImage.extent)
@@ -455,6 +543,8 @@ final class AnnotateState: ObservableObject {
   var canvasEffectsSnapshot: AnnotationCanvasEffects {
     AnnotationCanvasEffects(
       backgroundStyle: backgroundStyle,
+      isBlurredBackgroundEnabled: isBlurredBackgroundEnabled,
+      blurredBackgroundEffect: blurredBackgroundEffect,
       padding: padding,
       inset: inset,
       autoBalance: autoBalance,
@@ -473,6 +563,8 @@ final class AnnotateState: ObservableObject {
   ) {
     withCanvasEffectChangeTrackingSuspended {
       backgroundStyle = effects.backgroundStyle
+      isBlurredBackgroundEnabled = effects.isBlurredBackgroundEnabled && effects.backgroundStyle.supportsBlurredBackgroundEffect
+      blurredBackgroundEffect = effects.blurredBackgroundEffect
       padding = effects.padding
       inset = effects.inset
       autoBalance = effects.autoBalance
@@ -532,6 +624,8 @@ final class AnnotateState: ObservableObject {
     let beforePayload = currentCanvasPresetPayload()
     withCanvasEffectChangeTrackingSuspended {
       backgroundStyle = .none
+      isBlurredBackgroundEnabled = false
+      blurredBackgroundEffect = .soft
       padding = 0
       shadowIntensity = 0
       cornerRadius = 0
@@ -555,7 +649,11 @@ final class AnnotateState: ObservableObject {
   func applyCanvasPreset(_ preset: AnnotateCanvasPreset, marksUnsaved: Bool = true) {
     let beforePayload = currentCanvasPresetPayload()
     withCanvasEffectChangeTrackingSuspended {
-      backgroundStyle = preset.payload.backgroundStyle.toBackgroundStyle()
+      let presetBackgroundStyle = preset.payload.backgroundStyle.toBackgroundStyle()
+      backgroundStyle = presetBackgroundStyle
+      isBlurredBackgroundEnabled = preset.payload.isBlurredBackgroundEnabled &&
+        presetBackgroundStyle.supportsBlurredBackgroundEffect
+      blurredBackgroundEffect = preset.payload.blurredBackgroundEffect
       padding = preset.payload.padding
       shadowIntensity = preset.payload.shadowIntensity
       cornerRadius = preset.payload.cornerRadius
@@ -701,6 +799,8 @@ final class AnnotateState: ObservableObject {
 
     return AnnotateCanvasPresetPayload(
       backgroundStyle: codableStyle,
+      isBlurredBackgroundEnabled: isBlurredBackgroundEffectActive,
+      blurredBackgroundEffect: blurredBackgroundEffect,
       padding: padding,
       shadowIntensity: shadowIntensity,
       cornerRadius: cornerRadius,

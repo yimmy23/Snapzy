@@ -15,6 +15,8 @@ enum AnnotateCanvasDefaults {
 /// In-memory annotation session data for re-editing annotations
 struct AnnotationCanvasEffects {
   var backgroundStyle: BackgroundStyle = .none
+  var isBlurredBackgroundEnabled: Bool = false
+  var blurredBackgroundEffect: BlurredBackgroundEffect = .soft
   var padding: CGFloat = 0
   var inset: CGFloat = 0
   var autoBalance: Bool = true

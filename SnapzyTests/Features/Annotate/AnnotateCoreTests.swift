@@ -37,6 +37,8 @@ final class AnnotateCoreTests: XCTestCase {
   func testAnnotateCanvasDefaultsUseNoCornerRadius() {
     XCTAssertEqual(AnnotateCanvasDefaults.cornerRadius, 0)
     XCTAssertEqual(AnnotationCanvasEffects().cornerRadius, 0)
+    XCTAssertFalse(AnnotationCanvasEffects().isBlurredBackgroundEnabled)
+    XCTAssertEqual(AnnotationCanvasEffects().blurredBackgroundEffect, .soft)
   }
 
   func testInlineAreaControls_nearFullscreenSelectionUsesBottomInnerPlacement() {
@@ -766,6 +768,73 @@ final class AnnotateCoreTests: XCTestCase {
 
     XCTAssertEqual(payload.aspectRatio, .auto)
     XCTAssertEqual(payload.aspectRatioOrientation, .horizontal)
+    XCTAssertFalse(payload.isBlurredBackgroundEnabled)
+    XCTAssertEqual(payload.blurredBackgroundEffect, .soft)
+  }
+
+  func testAnnotateCanvasPresetPayloadApproximatelyEqualsIncludesBlurredBackgroundEffect() {
+    let wallpaperURL = URL(fileURLWithPath: "/tmp/snapzy-wallpaper.png")
+    let soft = AnnotateCanvasPresetPayload(
+      backgroundStyle: CodableBackgroundStyle(from: .wallpaper(wallpaperURL))!,
+      isBlurredBackgroundEnabled: true,
+      blurredBackgroundEffect: .soft,
+      padding: 40,
+      shadowIntensity: 0.3,
+      cornerRadius: 12
+    )
+    let vivid = AnnotateCanvasPresetPayload(
+      backgroundStyle: CodableBackgroundStyle(from: .wallpaper(wallpaperURL))!,
+      isBlurredBackgroundEnabled: true,
+      blurredBackgroundEffect: .vivid,
+      padding: 40,
+      shadowIntensity: 0.3,
+      cornerRadius: 12
+    )
+
+    XCTAssertFalse(soft.approximatelyEquals(vivid))
+  }
+
+  func testAnnotateCanvasPresetPayloadApproximatelyEqualsIncludesBlurredBackgroundEnabled() {
+    let wallpaperURL = URL(fileURLWithPath: "/tmp/snapzy-wallpaper.png")
+    let disabled = AnnotateCanvasPresetPayload(
+      backgroundStyle: CodableBackgroundStyle(from: .wallpaper(wallpaperURL))!,
+      isBlurredBackgroundEnabled: false,
+      blurredBackgroundEffect: .soft,
+      padding: 40,
+      shadowIntensity: 0.3,
+      cornerRadius: 12
+    )
+    let enabled = AnnotateCanvasPresetPayload(
+      backgroundStyle: CodableBackgroundStyle(from: .wallpaper(wallpaperURL))!,
+      isBlurredBackgroundEnabled: true,
+      blurredBackgroundEffect: .soft,
+      padding: 40,
+      shadowIntensity: 0.3,
+      cornerRadius: 12
+    )
+
+    XCTAssertFalse(disabled.approximatelyEquals(enabled))
+  }
+
+  func testAnnotateCanvasPresetPayloadApproximatelyEqualsIgnoresBlurredEffectForNonBlurredBackgrounds() {
+    let soft = AnnotateCanvasPresetPayload(
+      backgroundStyle: CodableBackgroundStyle(from: .gradient(.bluePurple))!,
+      isBlurredBackgroundEnabled: false,
+      blurredBackgroundEffect: .soft,
+      padding: 40,
+      shadowIntensity: 0.3,
+      cornerRadius: 12
+    )
+    let vivid = AnnotateCanvasPresetPayload(
+      backgroundStyle: CodableBackgroundStyle(from: .gradient(.bluePurple))!,
+      isBlurredBackgroundEnabled: false,
+      blurredBackgroundEffect: .vivid,
+      padding: 40,
+      shadowIntensity: 0.3,
+      cornerRadius: 12
+    )
+
+    XCTAssertTrue(soft.approximatelyEquals(vivid))
   }
 
   func testAnnotateCanvasPresetPayloadApproximatelyEqualsIncludesAspectRatio() {

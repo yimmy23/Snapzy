@@ -637,6 +637,9 @@ final class AnnotateExporter {
     case .solidColor(let color):
       context.setFillColor(NSColor(color).cgColor)
       context.fill(rect)
+      if state.isBlurredBackgroundEffectActive {
+        drawBlurredBackgroundTint(state: state, in: context, rect: rect)
+      }
 
     case .wallpaper(let url):
       if url.scheme == "preset",
@@ -645,13 +648,18 @@ final class AnnotateExporter {
         drawLinearGradient(colors: preset.colors, in: context, size: size)
         return
       }
-      if let wallpaper = resolveWallpaperImage(for: url, state: state, preferBlurred: false) {
+      let preferBlurred = state.isBlurredBackgroundEffectActive
+      if let wallpaper = resolveWallpaperImage(for: url, state: state, preferBlurred: preferBlurred) {
         wallpaper.draw(in: rect)
+        if preferBlurred {
+          drawBlurredBackgroundTint(state: state, in: context, rect: rect)
+        }
       }
 
     case .blurred(let url):
       if let wallpaper = resolveWallpaperImage(for: url, state: state, preferBlurred: true) {
         wallpaper.draw(in: rect)
+        drawBlurredBackgroundTint(state: state, in: context, rect: rect)
       }
     }
   }
@@ -678,17 +686,29 @@ final class AnnotateExporter {
     state: AnnotateState,
     preferBlurred: Bool
   ) -> NSImage? {
-    if preferBlurred, let blurred = state.cachedBlurredImage {
-      return blurred
+    if preferBlurred {
+      return state.blurredBackgroundImage(for: url)
     }
 
-    if let cached = state.cachedBackgroundImage {
-      return cached
+    if let image = state.backgroundImage(for: url) {
+      return image
     }
 
-    return SandboxFileAccessManager.shared.withScopedAccess(to: url, {
-      NSImage(contentsOf: url)
-    })
+    return nil
+  }
+
+  private static func drawBlurredBackgroundTint(
+    state: AnnotateState,
+    in context: CGContext,
+    rect: CGRect
+  ) {
+    let effect = state.blurredBackgroundEffect
+    guard effect.tintOpacity > 0 else { return }
+
+    context.saveGState()
+    context.setFillColor(NSColor(effect.tintColor).withAlphaComponent(CGFloat(effect.tintOpacity)).cgColor)
+    context.fill(rect)
+    context.restoreGState()
   }
 
 
@@ -862,11 +882,22 @@ struct MockupExportViewForAnnotate: View {
       )
     case .solidColor(let color):
       color
+        .brightness(state.isBlurredBackgroundEffectActive ? state.blurredBackgroundEffect.brightness : 0)
+        .overlay(
+          (state.isBlurredBackgroundEffectActive ? state.blurredBackgroundEffect.tintColor : .clear)
+            .opacity(state.isBlurredBackgroundEffectActive ? state.blurredBackgroundEffect.tintOpacity : 0)
+        )
     case .wallpaper(let url):
       // Check if this is a preset wallpaper
       if url.scheme == "preset", let presetName = url.host,
          let preset = WallpaperPreset(rawValue: presetName) {
         preset.gradient
+      } else if state.isBlurredBackgroundEffectActive,
+                let image = state.blurredBackgroundImage(for: url) {
+        Image(nsImage: image)
+          .resizable()
+          .aspectRatio(contentMode: .fill)
+          .overlay(state.blurredBackgroundEffect.tintColor.opacity(state.blurredBackgroundEffect.tintOpacity))
       } else if let image = resolvedWallpaperImage(for: url) {
         Image(nsImage: image)
           .resizable()
@@ -875,15 +906,20 @@ struct MockupExportViewForAnnotate: View {
         Color.gray.opacity(0.3)
       }
     case .blurred(let url):
-      if let image = state.cachedBlurredImage {
+      let effect = state.blurredBackgroundEffect
+      if let image = state.blurredBackgroundImage(for: url) {
         Image(nsImage: image)
           .resizable()
           .aspectRatio(contentMode: .fill)
+          .overlay(effect.tintColor.opacity(effect.tintOpacity))
       } else if let image = resolvedWallpaperImage(for: url) {
         Image(nsImage: image)
           .resizable()
           .aspectRatio(contentMode: .fill)
-          .blur(radius: 30)
+          .blur(radius: effect.blurRadius)
+          .saturation(effect.saturation)
+          .brightness(effect.brightness)
+          .overlay(effect.tintColor.opacity(effect.tintOpacity))
       } else {
         Color.gray.opacity(0.3)
       }
@@ -891,11 +927,6 @@ struct MockupExportViewForAnnotate: View {
   }
 
   private func resolvedWallpaperImage(for url: URL) -> NSImage? {
-    if let cached = state.cachedBackgroundImage {
-      return cached
-    }
-    return SandboxFileAccessManager.shared.withScopedAccess(to: url, {
-      NSImage(contentsOf: url)
-    })
+    state.backgroundImage(for: url)
   }
 }

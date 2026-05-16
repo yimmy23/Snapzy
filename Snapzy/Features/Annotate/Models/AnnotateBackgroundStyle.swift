@@ -5,6 +5,7 @@
 //  Background style types and presets for annotation canvas
 //
 
+import Foundation
 import SwiftUI
 
 /// Background style types
@@ -14,6 +15,110 @@ enum BackgroundStyle: Equatable, Sendable {
   case wallpaper(URL)
   case blurred(URL)
   case solidColor(Color)
+
+  var supportsBlurredBackgroundEffect: Bool {
+    switch self {
+    case .wallpaper, .blurred, .solidColor:
+      return true
+    case .none, .gradient:
+      return false
+    }
+  }
+
+  var blurredEffectImageURL: URL? {
+    switch self {
+    case .wallpaper(let url), .blurred(let url):
+      return url
+    case .none, .gradient, .solidColor:
+      return nil
+    }
+  }
+}
+
+/// Blur presets for applying a soft effect to the selected background layer.
+enum BlurredBackgroundEffect: String, CaseIterable, Identifiable, Codable, Equatable, Sendable {
+  case soft
+  case frosted
+  case vivid
+  case dim
+
+  var id: String { rawValue }
+
+  var displayName: String {
+    switch self {
+    case .soft:
+      return L10n.AnnotateUI.blurredBackgroundSoft
+    case .frosted:
+      return L10n.AnnotateUI.blurredBackgroundFrosted
+    case .vivid:
+      return L10n.AnnotateUI.blurredBackgroundVivid
+    case .dim:
+      return L10n.AnnotateUI.blurredBackgroundDim
+    }
+  }
+
+  var blurRadius: CGFloat {
+    switch self {
+    case .soft:
+      return 18
+    case .frosted:
+      return 30
+    case .vivid:
+      return 22
+    case .dim:
+      return 24
+    }
+  }
+
+  var saturation: Double {
+    switch self {
+    case .soft:
+      return 1.0
+    case .frosted:
+      return 0.85
+    case .vivid:
+      return 1.35
+    case .dim:
+      return 0.9
+    }
+  }
+
+  var brightness: Double {
+    switch self {
+    case .soft:
+      return 0
+    case .frosted:
+      return 0.06
+    case .vivid:
+      return 0.02
+    case .dim:
+      return -0.06
+    }
+  }
+
+  var tintColor: Color {
+    switch self {
+    case .soft, .frosted:
+      return .white
+    case .vivid:
+      return .orange
+    case .dim:
+      return .black
+    }
+  }
+
+  var tintOpacity: Double {
+    switch self {
+    case .soft:
+      return 0.08
+    case .frosted:
+      return 0.28
+    case .vivid:
+      return 0.10
+    case .dim:
+      return 0.24
+    }
+  }
 }
 
 /// Predefined gradient presets

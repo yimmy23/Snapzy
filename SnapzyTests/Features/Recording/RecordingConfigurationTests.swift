@@ -25,6 +25,7 @@ final class RecordingConfigurationTests: XCTestCase {
     XCTAssertTrue(RecordingToolbarPreferences.captureAudio(defaults: defaults))
     XCTAssertFalse(RecordingToolbarPreferences.captureMicrophone(defaults: defaults))
     XCTAssertEqual(RecordingToolbarPreferences.outputMode(defaults: defaults), .video)
+    XCTAssertTrue(RecordingToolbarPreferences.showCursor(defaults: defaults))
     XCTAssertFalse(RecordingToolbarPreferences.highlightClicks(defaults: defaults))
     XCTAssertFalse(RecordingToolbarPreferences.showKeystrokes(defaults: defaults))
   }
@@ -35,6 +36,7 @@ final class RecordingConfigurationTests: XCTestCase {
     defaults.set(false, forKey: PreferencesKeys.recordingCaptureAudio)
     defaults.set(true, forKey: PreferencesKeys.recordingCaptureMicrophone)
     defaults.set(RecordingOutputMode.gif.rawValue, forKey: PreferencesKeys.recordingOutputMode)
+    defaults.set(false, forKey: PreferencesKeys.recordingShowCursor)
     defaults.set(true, forKey: PreferencesKeys.recordingHighlightClicks)
     defaults.set(true, forKey: PreferencesKeys.recordingShowKeystrokes)
 
@@ -43,6 +45,7 @@ final class RecordingConfigurationTests: XCTestCase {
     XCTAssertFalse(RecordingToolbarPreferences.captureAudio(defaults: defaults))
     XCTAssertTrue(RecordingToolbarPreferences.captureMicrophone(defaults: defaults))
     XCTAssertEqual(RecordingToolbarPreferences.outputMode(defaults: defaults), .gif)
+    XCTAssertFalse(RecordingToolbarPreferences.showCursor(defaults: defaults))
     XCTAssertTrue(RecordingToolbarPreferences.highlightClicks(defaults: defaults))
     XCTAssertTrue(RecordingToolbarPreferences.showKeystrokes(defaults: defaults))
   }

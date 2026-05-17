@@ -125,6 +125,7 @@ final class RecordingRegionOverlayWindow: NSPanel {
     if enabled {
       overlayView.overlayWindow = self
     }
+    overlayView.refreshCursor()
   }
 
   // Non-activating: prevent stealing focus from other apps
@@ -185,7 +186,7 @@ final class RecordingRegionOverlayView: NSView {
   private func setupTrackingArea() {
     let trackingArea = NSTrackingArea(
       rect: bounds,
-      options: [.activeAlways, .mouseMoved, .inVisibleRect],
+      options: [.activeAlways, .mouseMoved, .mouseEnteredAndExited, .inVisibleRect, .cursorUpdate],
       owner: self,
       userInfo: nil
     )
@@ -198,6 +199,45 @@ final class RecordingRegionOverlayView: NSView {
       removeTrackingArea(area)
     }
     setupTrackingArea()
+  }
+
+  override func cursorUpdate(with event: NSEvent) {
+    guard isInteractionEnabled else {
+      NSCursor.arrow.set()
+      return
+    }
+    updateCursorFor(point: convert(event.locationInWindow, from: nil))
+  }
+
+  override func mouseEntered(with event: NSEvent) {
+    guard isInteractionEnabled else {
+      NSCursor.arrow.set()
+      return
+    }
+    updateCursorFor(point: convert(event.locationInWindow, from: nil))
+  }
+
+  override func mouseExited(with event: NSEvent) {
+    NSCursor.arrow.set()
+  }
+
+  override func resetCursorRects() {
+    addCursorRect(bounds, cursor: isInteractionEnabled ? .crosshair : .arrow)
+  }
+
+  func refreshCursor() {
+    window?.invalidateCursorRects(for: self)
+
+    guard isInteractionEnabled, let window else {
+      NSCursor.arrow.set()
+      return
+    }
+
+    let windowPoint = window.convertPoint(fromScreen: NSEvent.mouseLocation)
+    let point = convert(windowPoint, from: nil)
+    if bounds.contains(point) {
+      updateCursorFor(point: point)
+    }
   }
 
   // Accept first mouse click without requiring window activation

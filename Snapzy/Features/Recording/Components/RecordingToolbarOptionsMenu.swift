@@ -107,6 +107,19 @@ private struct ToolbarOptionsPopoverContent: View {
       // Overlays Section
       SettingsSection(title: L10n.RecordingToolbar.overlaysSection, icon: "square.stack.3d.up") {
         Toggle(isOn: Binding(
+          get: { state.showCursor },
+          set: { newValue in
+            state.showCursor = newValue
+            UserDefaults.standard.set(newValue, forKey: PreferencesKeys.recordingShowCursor)
+          }
+        )) {
+          Text(L10n.RecordingToolbar.showCursor)
+            .font(.system(size: 11))
+        }
+        .toggleStyle(.switch)
+        .controlSize(.small)
+
+        Toggle(isOn: Binding(
           get: { state.highlightClicks },
           set: { newValue in
             state.highlightClicks = newValue

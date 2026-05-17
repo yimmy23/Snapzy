@@ -9,6 +9,8 @@ import AppKit
 
 @MainActor
 final class QuickAccessPinWindow: NSPanel {
+  private static let pinnedWindowLevel = NSWindow.Level(rawValue: NSWindow.Level.floating.rawValue + 2)
+
   var onEscapeRequested: (() -> Void)?
 
   private weak var pinState: QuickAccessPinWindowState?
@@ -64,7 +66,6 @@ final class QuickAccessPinWindow: NSPanel {
   }
 
   private func configure() {
-    level = .floating
     isFloatingPanel = true
     hidesOnDeactivate = false
     isOpaque = false
@@ -75,6 +76,7 @@ final class QuickAccessPinWindow: NSPanel {
     acceptsMouseMovedEvents = true
     ignoresMouseEvents = false
     applyCornerRadius()
+    level = Self.pinnedWindowLevel
   }
 
   private var lockButtonScreenRect: NSRect {

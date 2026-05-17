@@ -9,6 +9,8 @@ import AppKit
 
 /// Custom NSWindow for video editing with dark mode appearance
 final class VideoEditorWindow: NSWindow {
+  private static let activeEditorLevel = NSWindow.Level(rawValue: NSWindow.Level.floating.rawValue + 1)
+  private let restingLevel: NSWindow.Level = .normal
 
   init(contentRect: NSRect) {
     super.init(
@@ -39,6 +41,14 @@ final class VideoEditorWindow: NSWindow {
     center()
 
     applyCornerRadius()
+  }
+
+  func applyActiveEditorLevel() {
+    level = Self.activeEditorLevel
+  }
+
+  func restoreRestingLevel() {
+    level = restingLevel
   }
 
   /// Apply current theme from ThemeManager

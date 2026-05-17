@@ -587,6 +587,7 @@ final class ScreenRecordingManager: NSObject, ObservableObject {
   private var fps: Int = 30
   private var captureSystemAudio: Bool = true
   private var captureMicrophone: Bool = false
+  private var showCursorInRecording: Bool = true
   private var excludeOwnApplicationFromCapture: Bool = true
   private var excludeDesktopIconsFromCapture: Bool = false
   private var excludeDesktopWidgetsFromCapture: Bool = false
@@ -642,6 +643,7 @@ final class ScreenRecordingManager: NSObject, ObservableObject {
     fps: Int = 30,
     captureSystemAudio: Bool = true,
     captureMicrophone: Bool = false,
+    showCursor: Bool = true,
     saveDirectory: URL,
     processingDirectory: URL? = nil,
     fileName: String? = nil,
@@ -669,6 +671,7 @@ final class ScreenRecordingManager: NSObject, ObservableObject {
       "fps": "\(fps)",
       "systemAudio": "\(captureSystemAudio)",
       "microphone": "\(captureMicrophone)",
+      "showCursor": "\(showCursor)",
       "excludeOwnApp": "\(excludeOwnApplication)",
       "excludeDesktopIcons": "\(excludeDesktopIcons)",
       "excludeDesktopWidgets": "\(excludeDesktopWidgets)",
@@ -682,6 +685,7 @@ final class ScreenRecordingManager: NSObject, ObservableObject {
     self.fps = fps
     self.captureSystemAudio = captureSystemAudio
     self.captureMicrophone = captureMicrophone
+    self.showCursorInRecording = showCursor
     self.excludeOwnApplicationFromCapture = excludeOwnApplication
     self.excludeDesktopIconsFromCapture = excludeDesktopIcons
     self.excludeDesktopWidgetsFromCapture = excludeDesktopWidgets
@@ -1655,7 +1659,7 @@ final class ScreenRecordingManager: NSObject, ObservableObject {
     config.height = captureGeometry.outputHeight
     config.minimumFrameInterval = CMTime(value: 1, timescale: CMTimeScale(fps))
     config.pixelFormat = kCVPixelFormatType_32BGRA
-    config.showsCursor = true
+    config.showsCursor = showCursorInRecording
     config.sourceRect = captureGeometry.sourceRect
     let captureResolutionMode: String
     if #available(macOS 14.2, *) {
@@ -1945,6 +1949,7 @@ final class ScreenRecordingManager: NSObject, ObservableObject {
     exceptedWindowIDs.removeAll()
     captureWindowTarget = nil
     session.setOnFirstVideoFrame(nil)
+    showCursorInRecording = true
     excludeOwnApplicationFromCapture = true
     excludeDesktopIconsFromCapture = false
     excludeDesktopWidgetsFromCapture = false

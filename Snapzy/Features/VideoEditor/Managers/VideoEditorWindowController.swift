@@ -129,7 +129,16 @@ final class VideoEditorWindowController: NSWindowController, NSWindowDelegate {
 
   func showWindow() {
     window?.makeKeyAndOrderFront(nil)
+    window?.makeMain()
     NSApp.activate(ignoringOtherApps: true)
+  }
+
+  func windowDidBecomeMain(_ notification: Notification) {
+    (notification.object as? VideoEditorWindow)?.applyActiveEditorLevel()
+  }
+
+  func windowDidResignMain(_ notification: Notification) {
+    (notification.object as? VideoEditorWindow)?.restoreRestingLevel()
   }
 
   private var isTempCaptureSource: Bool {

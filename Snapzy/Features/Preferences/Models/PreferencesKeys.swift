@@ -75,6 +75,7 @@ enum PreferencesKeys {
   static let recordingRememberLastArea = "recording.rememberLastArea"
   static let recordingOutputMode = "recording.outputMode"
   static let recordingIncludeOwnApp = "recording.includeOwnApp"
+  static let recordingShowCursor = "recording.showCursor"
   static let recordingHighlightClicks = "recording.highlightClicks"
   static let recordingShowKeystrokes = "recording.showKeystrokes"
   static let videoEditorZoomTransitionDuration = "videoEditor.zoom.transitionDuration"

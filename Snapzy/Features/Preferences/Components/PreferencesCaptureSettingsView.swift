@@ -51,6 +51,7 @@ struct CaptureSettingsView: View {
   @AppStorage(PreferencesKeys.recordingCaptureMicrophone) private var captureMicrophone = false
   @AppStorage(PreferencesKeys.recordingRememberLastArea) private var rememberLastArea = true
   @AppStorage(PreferencesKeys.recordingIncludeOwnApp) private var includeOwnAppInRecordings = false
+  @AppStorage(PreferencesKeys.recordingShowCursor) private var recordingShowCursor = true
 
   // Mouse Highlight settings
   @AppStorage(PreferencesKeys.mouseHighlightSize) private var mouseHighlightSize: Double = 50
@@ -358,6 +359,15 @@ struct CaptureSettingsView: View {
 
         if selectedPane == .recording {
           Section(L10n.PreferencesCapture.recordingBehaviorSection) {
+            SettingRow(
+              icon: "cursorarrow",
+              title: L10n.PreferencesCapture.showCursorTitle,
+              description: L10n.PreferencesCapture.recordingShowCursorDescription
+            ) {
+              Toggle("", isOn: $recordingShowCursor)
+                .labelsHidden()
+            }
+
             SettingRow(
               icon: "rectangle.dashed",
               title: L10n.PreferencesCapture.rememberLastAreaTitle,

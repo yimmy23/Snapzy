@@ -1895,6 +1895,11 @@ enum L10n {
       defaultValue: "Include mouse pointer in captured screenshots",
       comment: "Capture preferences setting description"
     )
+    static let recordingShowCursorDescription = string(
+      "preferences-capture.recording-show-cursor-description",
+      defaultValue: "Include mouse pointer in recorded videos and GIFs",
+      comment: "Recording preferences setting description"
+    )
     static let imageFormatTitle = string(
       "preferences-capture.image-format-title",
       defaultValue: "Image Format",
@@ -5089,6 +5094,11 @@ enum L10n {
     static let showKeystrokes = string(
       "recording-toolbar.show-keystrokes",
       defaultValue: "Show Keystrokes",
+      comment: "Recording toolbar setting label"
+    )
+    static let showCursor = string(
+      "recording-toolbar.show-cursor",
+      defaultValue: "Show Cursor",
       comment: "Recording toolbar setting label"
     )
     static let outputModeAccessibilityPrefix = string(

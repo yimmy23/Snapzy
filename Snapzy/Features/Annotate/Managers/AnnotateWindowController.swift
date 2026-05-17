@@ -177,6 +177,14 @@ final class AnnotateWindowController: NSWindowController, NSWindowDelegate {
     NSApp.activate(ignoringOtherApps: true)
   }
 
+  func windowDidBecomeMain(_ notification: Notification) {
+    (notification.object as? AnnotateWindow)?.applyActiveEditorLevel()
+  }
+
+  func windowDidResignMain(_ notification: Notification) {
+    (notification.object as? AnnotateWindow)?.restoreRestingLevel()
+  }
+
   // MARK: - Image Loading
 
   /// Load image and adjust size for Retina displays
@@ -503,7 +511,11 @@ final class AnnotateWindowController: NSWindowController, NSWindowDelegate {
   private func togglePin() {
     guard let window = self.window else { return }
     let newPinned = !state.isPinned
-    window.level = newPinned ? .floating : .normal
+    if let annotateWindow = window as? AnnotateWindow {
+      annotateWindow.setRestingLevel(newPinned ? .floating : .normal)
+    } else {
+      window.level = newPinned ? .floating : .normal
+    }
     state.isPinned = newPinned
   }
 

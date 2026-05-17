@@ -110,6 +110,28 @@ final class QuickAccessCoreTests: XCTestCase {
     XCTAssertFalse(state.zoomMenuPercents.contains(50))
   }
 
+  func testQuickAccessPinWindow_levelSurvivesFloatingPanelConfiguration() {
+    let image = NSImage(size: CGSize(width: 24, height: 16))
+    let state = QuickAccessPinWindowState(
+      id: UUID(),
+      url: URL(fileURLWithPath: "/tmp/pinned.png"),
+      image: image,
+      thumbnail: image,
+      baseSize: CGSize(width: 320, height: 220),
+      maxSize: CGSize(width: 1200, height: 900)
+    )
+    Self.retainedPinWindowStates.append(state)
+
+    let window = QuickAccessPinWindow(
+      contentRect: NSRect(x: 0, y: 0, width: 320, height: 220),
+      state: state
+    )
+    defer { window.close() }
+
+    XCTAssertTrue(window.isFloatingPanel)
+    XCTAssertGreaterThan(window.level.rawValue, NSWindow.Level.floating.rawValue + 1)
+  }
+
   func testQuickAccessActionConfigurationStore_usesDefaultOrderAndEnabledActions() {
     let defaults = makeIsolatedDefaults()
     let store = makeActionConfigurationStore(defaults: defaults)

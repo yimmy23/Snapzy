@@ -45,6 +45,7 @@ final class RecordingCoordinator: ObservableObject {
     let captureAudio: Bool
     let captureMicrophone: Bool
     let outputMode: RecordingOutputMode
+    let showCursor: Bool
     let highlightClicks: Bool
     let showKeystrokes: Bool
   }
@@ -295,6 +296,7 @@ final class RecordingCoordinator: ObservableObject {
       captureAudio: toolbarWindow.captureAudio,
       captureMicrophone: toolbarWindow.captureMicrophone,
       outputMode: toolbarWindow.outputMode,
+      showCursor: toolbarWindow.state.showCursor,
       highlightClicks: toolbarWindow.state.highlightClicks,
       showKeystrokes: toolbarWindow.state.showKeystrokes
     )
@@ -310,6 +312,7 @@ final class RecordingCoordinator: ObservableObject {
       toolbar.captureAudio = configuration.captureAudio
       toolbar.captureMicrophone = configuration.captureMicrophone
       toolbar.outputMode = configuration.outputMode
+      toolbar.state.showCursor = configuration.showCursor
       toolbar.state.highlightClicks = configuration.highlightClicks
       toolbar.state.showKeystrokes = configuration.showKeystrokes
       return
@@ -470,11 +473,13 @@ final class RecordingCoordinator: ObservableObject {
     let savedQuality = window.selectedQuality
     let savedCaptureAudio = window.captureAudio
     let savedCaptureMicrophone = window.captureMicrophone
+    let savedShowCursor = window.state.showCursor
     DiagnosticLogger.shared.log(.info, .recording, "Recording restart requested", context: [
       "format": savedFormat.rawValue,
       "quality": savedQuality.rawValue,
       "systemAudio": "\(savedCaptureAudio)",
       "microphone": "\(savedCaptureMicrophone)",
+      "showCursor": "\(savedShowCursor)",
       "rect": "\(Int(rect.width))x\(Int(rect.height))",
     ])
 
@@ -510,6 +515,7 @@ final class RecordingCoordinator: ObservableObject {
           fps: fps,
           captureSystemAudio: savedCaptureAudio,
           captureMicrophone: savedCaptureMicrophone,
+          showCursor: savedShowCursor,
           saveDirectory: savePlan.finalDirectory,
           processingDirectory: savePlan.processingDirectory,
           excludeDesktopIcons: DesktopIconManager.shared.isIconHidingEnabled,
@@ -573,6 +579,7 @@ final class RecordingCoordinator: ObservableObject {
     let quality = VideoQuality(rawValue: qualityString) ?? .high
 
     let captureSystemAudio = window.captureAudio
+    let showCursor = window.state.showCursor
 
     // Get microphone setting from toolbar
     let captureMicrophone = window.captureMicrophone
@@ -581,6 +588,7 @@ final class RecordingCoordinator: ObservableObject {
       "fps": "\(fps)",
       "systemAudio": "\(captureSystemAudio)",
       "microphone": "\(captureMicrophone)",
+      "showCursor": "\(showCursor)",
     ])
 
     guard let saveDirectory = resolveSaveDirectoryForOperation() else {
@@ -613,6 +621,7 @@ final class RecordingCoordinator: ObservableObject {
           fps: fps,
           captureSystemAudio: captureSystemAudio,
           captureMicrophone: captureMicrophone,
+          showCursor: showCursor,
           saveDirectory: savePlan.finalDirectory,
           processingDirectory: savePlan.processingDirectory,
           excludeDesktopIcons: DesktopIconManager.shared.isIconHidingEnabled,
@@ -716,6 +725,7 @@ final class RecordingCoordinator: ObservableObject {
     let qualityString = UserDefaults.standard.string(forKey: PreferencesKeys.recordingQuality) ?? "high"
     let quality = VideoQuality(rawValue: qualityString) ?? .high
     let captureSystemAudio = window.captureAudio
+    let showCursor = window.state.showCursor
 
     guard let saveDirectory = resolveSaveDirectoryForOperation() else {
       DiagnosticLogger.shared.log(.warning, .recording, "Microphone retry blocked: no save directory access")
@@ -740,6 +750,7 @@ final class RecordingCoordinator: ObservableObject {
           fps: fps,
           captureSystemAudio: captureSystemAudio,
           captureMicrophone: false,
+          showCursor: showCursor,
           saveDirectory: savePlan.finalDirectory,
           processingDirectory: savePlan.processingDirectory,
           excludeDesktopIcons: DesktopIconManager.shared.isIconHidingEnabled,

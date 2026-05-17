@@ -254,6 +254,7 @@ flowchart TD
 
 - Recording metadata is stored separately from the media file and powers Smart Camera / Follow Mouse in the video editor.
 - Recording media is written to a per-session internal `Application Support/Snapzy/Captures/RecordingProcessing/` directory first. When the writer finishes, Snapzy moves only the final video into the user export folder when Save is enabled, or into the temp capture root when Save is disabled, then deletes the processing directory and AVAssetWriter sidecars.
+- Recording cursor inclusion is controlled by `PreferencesKeys.recordingShowCursor` and defaults to enabled to preserve the historical behavior. The toolbar Options popover and Capture → Recording settings share the same state before `ScreenRecordingManager` writes it to `SCStreamConfiguration.showsCursor`.
 - Recorded system and microphone audio tracks are encoded as AAC-LC at 48 kHz stereo with an explicit stereo channel layout. When multiple audio sources are present, Snapzy normalizes the user-facing recording to one mixed AAC-LC stereo audio track for broad MP4/MOV compatibility across common players and upload platforms, while storing an editor-only multitrack audio source sidecar plus explicit track-role metadata for later per-source volume edits.
 - GIF output is a two-step flow: record video first, then convert and swap the Quick Access item.
 - `RecordingCoordinator` owns toolbar and overlay UX. `ScreenRecordingManager` owns media capture, timing, and metadata persistence.

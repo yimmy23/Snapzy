@@ -5775,6 +5775,71 @@
         }
       }
     },
+    "preferences-capture.recording-show-cursor-description" : {
+      "extractionState" : "stale",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mauszeiger in aufgezeichnete Videos und GIFs einbinden"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Include mouse pointer in recorded videos and GIFs"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Incluir el puntero del mouse en videos y GIF grabados"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Inclure le pointeur de la souris dans les vidéos et GIF enregistrés"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "録画したビデオとGIFにマウス ポインタを含める"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "녹화된 비디오와 GIF에 마우스 포인터 포함"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Включить указатель мыши в записанные видео и GIF"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bao gồm con trỏ chuột trong video và GIF đã ghi"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在录制的视频和 GIF 中包含鼠标指针"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在錄製的影片和 GIF 中包含滑鼠游標"
+          }
+        }
+      }
+    },
     "preferences-capture.show-cursor-description" : {
       "extractionState" : "stale",
       "localizations" : {

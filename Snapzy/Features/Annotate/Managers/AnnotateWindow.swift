@@ -32,6 +32,8 @@ extension Notification.Name {
 /// Custom NSWindow for annotation editing with dark mode appearance
 final class AnnotateWindow: NSWindow {
   weak var interactionState: AnnotateState?
+  private static let activeEditorLevel = NSWindow.Level(rawValue: NSWindow.Level.floating.rawValue + 1)
+  private var restingLevel: NSWindow.Level = .normal
 
   init(contentRect: NSRect) {
     super.init(
@@ -56,7 +58,7 @@ final class AnnotateWindow: NSWindow {
     center()
 
     // Explicit normal level for proper Cmd+Tab behavior
-    level = .normal
+    level = restingLevel
 
     // Register as managed window for normal Cmd+` cycling
     collectionBehavior = [.managed, .participatesInCycle]
@@ -79,6 +81,19 @@ final class AnnotateWindow: NSWindow {
 
   override var canBecomeKey: Bool { true }
   override var canBecomeMain: Bool { true }
+
+  func setRestingLevel(_ newLevel: NSWindow.Level) {
+    restingLevel = newLevel
+    level = (isKeyWindow || isMainWindow) ? Self.activeEditorLevel : newLevel
+  }
+
+  func applyActiveEditorLevel() {
+    level = Self.activeEditorLevel
+  }
+
+  func restoreRestingLevel() {
+    level = restingLevel
+  }
 
   override func layoutIfNeeded() {
     super.layoutIfNeeded()

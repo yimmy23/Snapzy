@@ -78,6 +78,10 @@ enum RecordingToolbarPreferences {
   static func showKeystrokes(defaults: UserDefaults = .standard) -> Bool {
     defaults.object(forKey: PreferencesKeys.recordingShowKeystrokes) as? Bool ?? false
   }
+
+  static func showCursor(defaults: UserDefaults = .standard) -> Bool {
+    defaults.object(forKey: PreferencesKeys.recordingShowCursor) as? Bool ?? true
+  }
 }
 
 // MARK: - Observable State
@@ -90,6 +94,7 @@ final class RecordingToolbarState: ObservableObject {
   @Published var captureMicrophone: Bool
   @Published var captureMode: RecordingCaptureMode
   @Published var outputMode: RecordingOutputMode
+  @Published var showCursor: Bool
   @Published var highlightClicks: Bool
   @Published var showKeystrokes: Bool
   @Published var isPreparingToRecord: Bool = false
@@ -103,6 +108,7 @@ final class RecordingToolbarState: ObservableObject {
     self.captureMicrophone = RecordingToolbarPreferences.captureMicrophone()
     self.captureMode = .area
     self.outputMode = RecordingToolbarPreferences.outputMode()
+    self.showCursor = RecordingToolbarPreferences.showCursor()
     self.highlightClicks = RecordingToolbarPreferences.highlightClicks()
     self.showKeystrokes = RecordingToolbarPreferences.showKeystrokes()
   }

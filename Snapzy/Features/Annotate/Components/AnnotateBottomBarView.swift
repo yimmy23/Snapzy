@@ -422,7 +422,11 @@ struct AnnotateBottomBarView: View {
   private func pin() {
     if let window = NSApp.keyWindow {
       let newPinned = !state.isPinned
-      window.level = newPinned ? .floating : .normal
+      if let annotateWindow = window as? AnnotateWindow {
+        annotateWindow.setRestingLevel(newPinned ? .floating : .normal)
+      } else {
+        window.level = newPinned ? .floating : .normal
+      }
       state.isPinned = newPinned
     }
   }

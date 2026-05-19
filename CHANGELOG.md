@@ -53,6 +53,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 
 
+
+## [1.16.3] - 2026-05-19
+
+### Chore
+- refactor: Simplify thumbnail rendering and improve card shape handling in QuickAccessCardView (1725fe8)
+- docs: Add Trendshift badge to README files for visibility (9ea07ae)
+- chore: update appcast, cask, and readme for v1.16.2 (4bc5042)
+
+### Contributors
+- @duongductrong
+- @github-actions[bot]
+
 ## [1.16.2] - 2026-05-17
 
 ### Features

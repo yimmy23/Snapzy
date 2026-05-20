@@ -55,6 +55,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 
 
+
+## [1.17.0] - 2026-05-20
+
+### Features
+-  Add clipboard image behavior settings and localization for Annotate (#104) (30f41b8)
+-  Implement color palette management for annotation tools (#189, #188) (77ffa22)
+
+### Chore
+- chore: update appcast, cask, and readme for v1.16.4 (60a41c3)
+
+### Contributors
+- @duongductrong
+- @github-actions[bot]
+
 ## [1.16.4] - 2026-05-19
 
 ### Bug Fixes

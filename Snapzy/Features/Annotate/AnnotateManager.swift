@@ -157,7 +157,7 @@ final class AnnotateManager {
   }
 
   /// Open annotation window directly from a file URL (used by post-capture auto-open)
-  func openAnnotation(url: URL) {
+  func openAnnotation(url: URL, sessionData: AnnotationSessionData? = nil) {
     guard NSScreen.screens.isEmpty == false else {
       DiagnosticLogger.shared.log(.error, .action, "Annotate open failed: no screens available")
       return
@@ -172,7 +172,7 @@ final class AnnotateManager {
     // Switch to regular app mode for Cmd+Tab visibility
     becomeRegularApp()
 
-    let controller = AnnotateWindowController(url: url)
+    let controller = AnnotateWindowController(url: url, sessionData: sessionData)
     let controllerId = UUID()
     windowControllers[controllerId] = controller
     DiagnosticLogger.shared.log(.info, .action, "Annotate window opened for URL \(url.lastPathComponent)")
@@ -257,6 +257,10 @@ final class AnnotateManager {
       cutoutAutoAppliedCropRect: cutoutAutoAppliedCropRect,
       embeddedImageAssetsData: embeddedImageAssetsData
     )
+  }
+
+  func saveSessionData(_ sessionData: AnnotationSessionData, for itemId: UUID) {
+    sessionCache[itemId] = sessionData
   }
 
   /// Get cached session data for an item

@@ -139,7 +139,8 @@ final class QuickAccessManager: ObservableObject {
   // MARK: - Public Methods
 
   /// Add a new screenshot to the quick access stack
-  func addScreenshot(url: URL) async {
+  @discardableResult
+  func addScreenshot(url: URL) async -> QuickAccessItem? {
     guard isEnabled else {
       DiagnosticLogger.shared.log(
         .debug,
@@ -147,7 +148,7 @@ final class QuickAccessManager: ObservableObject {
         "Quick access screenshot skipped; feature disabled",
         context: ["fileName": url.lastPathComponent]
       )
-      return
+      return nil
     }
     let fileAccess = fileAccessManager.beginAccessingURL(url)
     defer { fileAccess.stop() }
@@ -210,10 +211,13 @@ final class QuickAccessManager: ObservableObject {
     if needsRetry {
       scheduleThumbnailRetry(for: item.id, url: url)
     }
+
+    return item
   }
 
   /// Add a new video recording to the quick access stack
-  func addVideo(url: URL) async {
+  @discardableResult
+  func addVideo(url: URL) async -> QuickAccessItem? {
     guard isEnabled else {
       DiagnosticLogger.shared.log(
         .debug,
@@ -221,7 +225,7 @@ final class QuickAccessManager: ObservableObject {
         "Quick access video skipped; feature disabled",
         context: ["fileName": url.lastPathComponent]
       )
-      return
+      return nil
     }
     let fileAccess = fileAccessManager.beginAccessingURL(url)
     defer { fileAccess.stop() }
@@ -287,6 +291,8 @@ final class QuickAccessManager: ObservableObject {
         "duration": "\(result.duration ?? 0)",
       ]
     )
+
+    return item
   }
 
   /// Present a history record as a Quick Access card and return the session item.

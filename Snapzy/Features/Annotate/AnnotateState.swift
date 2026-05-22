@@ -1622,7 +1622,7 @@ final class AnnotateState: ObservableObject {
   }
 
   /// Load image and adjust size for Retina displays
-  private static func loadImageWithCorrectScale(from url: URL) -> NSImage? {
+  static func loadImageWithCorrectScale(from url: URL) -> NSImage? {
     guard let image = SandboxFileAccessManager.shared.withScopedAccess(to: url, {
       NSImage(contentsOf: url)
     }) else { return nil }

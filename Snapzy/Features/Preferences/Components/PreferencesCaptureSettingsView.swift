@@ -214,6 +214,11 @@ struct CaptureSettingsView: View {
           }
         }
 
+        if selectedPane == .screenshot {
+          Section(L10n.PreferencesCapture.screenshotPresetSection) {
+            PreferencesScreenshotDefaultPresetPicker()
+          }
+        }
 
 
         if selectedPane == .screenshot {

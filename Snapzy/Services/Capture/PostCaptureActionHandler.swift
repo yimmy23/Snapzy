@@ -17,20 +17,28 @@ private let logger = Logger(subsystem: "Snapzy", category: "PostCaptureActionHan
 @MainActor
 final class PostCaptureActionHandler {
 
-  static let shared = PostCaptureActionHandler()
+  static let shared = PostCaptureActionHandler(
+    preferences: PreferencesManager.shared,
+    quickAccess: QuickAccessManager.shared,
+    fileAccess: SandboxFileAccessManager.shared,
+    screenshotPresetAutoApplier: ScreenshotPresetAutoApplier.shared
+  )
 
   private let preferences: PreferencesProviding
   private let quickAccess: QuickAccessManaging
   private let fileAccess: SandboxFileAccessing
+  private let screenshotPresetAutoApplier: ScreenshotPresetAutoApplier
 
   init(
-    preferences: PreferencesProviding = PreferencesManager.shared,
-    quickAccess: QuickAccessManaging = QuickAccessManager.shared,
-    fileAccess: SandboxFileAccessing = SandboxFileAccessManager.shared
+    preferences: PreferencesProviding,
+    quickAccess: QuickAccessManaging,
+    fileAccess: SandboxFileAccessing,
+    screenshotPresetAutoApplier: ScreenshotPresetAutoApplier
   ) {
     self.preferences = preferences
     self.quickAccess = quickAccess
     self.fileAccess = fileAccess
+    self.screenshotPresetAutoApplier = screenshotPresetAutoApplier
   }
 
   // MARK: - Public API
@@ -69,9 +77,19 @@ final class PostCaptureActionHandler {
       context: ["count": "\(validURLs.count)"]
     )
 
+    var sessionDataByURL: [URL: AnnotationSessionData] = [:]
+    for url in validURLs {
+      if let sessionData = screenshotPresetAutoApplier.applyDefaultPresetIfNeeded(to: url) {
+        sessionDataByURL[url] = sessionData
+      }
+    }
+
     if preferences.isActionEnabled(.showQuickAccess, for: .screenshot) {
       for url in validURLs {
-        await quickAccess.addScreenshot(url: url)
+        let item = await quickAccess.addScreenshot(url: url)
+        if let item, let sessionData = sessionDataByURL[url] {
+          AnnotateManager.shared.saveSessionData(sessionData, for: item.id)
+        }
       }
     }
 
@@ -86,7 +104,7 @@ final class PostCaptureActionHandler {
     }
 
     if preferences.isActionEnabled(.openAnnotate, for: .screenshot), let firstURL = validURLs.first {
-      AnnotateManager.shared.openAnnotation(url: firstURL)
+      AnnotateManager.shared.openAnnotation(url: firstURL, sessionData: sessionDataByURL[firstURL])
       DiagnosticLogger.shared.log(
         .info,
         .annotate,
@@ -270,6 +288,9 @@ final class PostCaptureActionHandler {
     }
 
     logger.info("Executing post-capture actions for \(captureType == .screenshot ? "screenshot" : "recording"): \(url.lastPathComponent)")
+    let screenshotSessionData = captureType == .screenshot
+      ? screenshotPresetAutoApplier.applyDefaultPresetIfNeeded(to: url)
+      : nil
     let isTempCapture = TempCaptureManager.shared.isTempFile(url)
     let locationLabel = isTempCapture ? "temp" : "export"
     let typeLabel = captureType == .screenshot ? "screenshot" : "recording"
@@ -286,12 +307,16 @@ final class PostCaptureActionHandler {
     )
 
     // Show Quick Access Overlay
+    var quickAccessItem: QuickAccessItem?
     if !skipQuickAccess && preferences.isActionEnabled(.showQuickAccess, for: captureType) {
       switch captureType {
       case .screenshot:
-        await quickAccess.addScreenshot(url: url)
+        quickAccessItem = await quickAccess.addScreenshot(url: url)
+        if let quickAccessItem, let screenshotSessionData {
+          AnnotateManager.shared.saveSessionData(screenshotSessionData, for: quickAccessItem.id)
+        }
       case .recording:
-        await quickAccess.addVideo(url: url)
+        quickAccessItem = await quickAccess.addVideo(url: url)
       }
       logger.debug("Quick access overlay shown for \(url.lastPathComponent)")
       DiagnosticLogger.shared.log(
@@ -328,7 +353,11 @@ final class PostCaptureActionHandler {
 
     // Open Annotate Editor (screenshots only)
     if captureType == .screenshot && preferences.isActionEnabled(.openAnnotate, for: captureType) {
-      AnnotateManager.shared.openAnnotation(url: url)
+      if let quickAccessItem {
+        AnnotateManager.shared.openAnnotation(for: quickAccessItem)
+      } else {
+        AnnotateManager.shared.openAnnotation(url: url, sessionData: screenshotSessionData)
+      }
       logger.debug("Annotate editor opened for \(url.lastPathComponent)")
       DiagnosticLogger.shared.log(
         .info,

@@ -1810,7 +1810,12 @@ enum L10n {
     )
     static let screenshotFormatSection = string(
       "preferences-capture.section-screenshot-format",
-      defaultValue: "Screenshot Format",
+      defaultValue: "Format",
+      comment: "Capture preferences section title"
+    )
+    static let screenshotPresetSection = string(
+      "preferences-capture.section-screenshot-preset",
+      defaultValue: "Preset",
       comment: "Capture preferences section title"
     )
 
@@ -1934,6 +1939,16 @@ enum L10n {
       "preferences-capture.jpeg-cutout-note",
       defaultValue: "Object cutout captures require transparency. Snapzy will save them as PNG even when JPEG is selected.",
       comment: "Informational note shown when JPEG screenshot format is selected"
+    )
+    static let defaultPresetTitle = string(
+      "preferences-capture.default-preset-title",
+      defaultValue: "Default Preset",
+      comment: "Capture preferences setting title"
+    )
+    static let defaultPresetDescription = string(
+      "preferences-capture.default-preset-description",
+      defaultValue: "Apply an Annotate preset right after each screenshot capture",
+      comment: "Capture preferences setting description"
     )
 
     static let showSessionHintsTitle = string(

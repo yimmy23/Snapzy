@@ -9,8 +9,11 @@ import Foundation
 
 @MainActor
 protocol QuickAccessManaging {
-  func addScreenshot(url: URL) async
-  func addVideo(url: URL) async
+  @discardableResult
+  func addScreenshot(url: URL) async -> QuickAccessItem?
+
+  @discardableResult
+  func addVideo(url: URL) async -> QuickAccessItem?
 }
 
 extension QuickAccessManager: QuickAccessManaging {}

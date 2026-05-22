@@ -144,15 +144,42 @@ final class AnnotateWindowController: NSWindowController, NSWindowDelegate {
   }
 
   /// URL-only initializer for post-capture auto-open flow
-  init(url: URL) {
+  init(url: URL, sessionData: AnnotationSessionData? = nil) {
     self.quickAccessItemId = nil
     self.sourceFileAccess = SandboxFileAccessManager.shared.beginAccessingURL(url)
 
-    let image = Self.loadImageWithCorrectScale(from: url)
-      ?? NSImage(size: NSSize(width: 400, height: 300))
-    self.originalImageData = Self.readFileData(from: url)
-
-    self.state = AnnotateState(image: image, url: url)
+    if let sessionData {
+      let image = NSImage(data: sessionData.originalImageData)
+        .flatMap({ img in Self.applyRetinaScaling(to: img) })
+        ?? Self.loadImageWithCorrectScale(from: url)
+        ?? NSImage(size: NSSize(width: 400, height: 300))
+      self.originalImageData = sessionData.originalImageData
+      self.state = AnnotateState(
+        image: image,
+        url: url,
+        appliesDefaultCanvasPresetOnNewImages: false
+      )
+      self.state.restoreEmbeddedImageAssets(from: sessionData.embeddedImageAssetsData)
+      self.state.annotations = sessionData.annotations
+      self.state.applyCanvasEffects(
+        sessionData.canvasEffects,
+        preferredSelectedCanvasPresetId: sessionData.selectedCanvasPresetId,
+        preferredPresetDirtyState: sessionData.isSelectedCanvasPresetDirty
+      )
+      self.state.cropRect = sessionData.cropRect
+      self.state.isCropActive = false
+      self.state.restoreBackgroundCutout(
+        isApplied: sessionData.isCutoutApplied,
+        cutoutImageData: sessionData.cutoutImageData,
+        didAutoApplyCrop: sessionData.didCutoutAutoApplyCrop,
+        autoAppliedCropRect: sessionData.cutoutAutoAppliedCropRect
+      )
+    } else {
+      let image = Self.loadImageWithCorrectScale(from: url)
+        ?? NSImage(size: NSSize(width: 400, height: 300))
+      self.originalImageData = Self.readFileData(from: url)
+      self.state = AnnotateState(image: image, url: url)
+    }
 
     let windowWidth: CGFloat = 1200
     let windowHeight: CGFloat = 768

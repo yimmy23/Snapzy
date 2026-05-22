@@ -58,6 +58,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 
 
+
+## [1.18.0] - 2026-05-22
+
+### Features
+-  Improve Quick Access card actions with enhanced state management and visual feedback (041abc1)
+-  Enhance screenshot preset auto-application with lightweight canvas effect rendering (2f87868)
+-  Implement persisted annotation session management (34ee68c)
+-  Implement screenshot preset auto-application and enhance annotation session management (#197) (dad78d4)
+
+### Chore
+- chore: update appcast, cask, and readme for v1.17.2 (106a7bb)
+
+### Contributors
+- @duongductrong
+- @github-actions[bot]
+
 ## [1.17.2] - 2026-05-22
 
 ### Features

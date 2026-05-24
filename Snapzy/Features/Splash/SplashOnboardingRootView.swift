@@ -12,6 +12,7 @@ enum SplashScreen: Equatable {
   case language
   case sponsor
   case permissions
+  case configAccess
   case shortcuts
   case diagnostics
   case completion
@@ -27,6 +28,7 @@ struct SplashOnboardingRootView: View {
   let showSponsorPrompt: Bool
   let onDismiss: () -> Void
 
+  private let onboardingSteps: [SplashScreen]
   @State private var currentScreen: SplashScreen = .splash
   @State private var contentOpacity: Double = 1
   @State private var navigationDirection: NavigationDirection = .forward
@@ -34,16 +36,30 @@ struct SplashOnboardingRootView: View {
   @StateObject private var onboardingLocalization = OnboardingLocalizationController()
   @ObservedObject private var screenCaptureManager = ScreenCaptureManager.shared
 
-  private static let onboardingSteps: [SplashScreen] = [
-    .language, .permissions, .shortcuts, .diagnostics, .completion,
+  private static let defaultOnboardingSteps: [SplashScreen] = [
+    .language, .permissions, .configAccess, .shortcuts, .diagnostics, .completion,
   ]
 
+  init(
+    needsOnboarding: Bool,
+    showSponsorPrompt: Bool,
+    initialScreen: SplashScreen = .splash,
+    onboardingSteps: [SplashScreen]? = nil,
+    onDismiss: @escaping () -> Void
+  ) {
+    self.needsOnboarding = needsOnboarding
+    self.showSponsorPrompt = showSponsorPrompt
+    self.onboardingSteps = onboardingSteps ?? Self.defaultOnboardingSteps
+    self.onDismiss = onDismiss
+    _currentScreen = State(initialValue: initialScreen)
+  }
+
   private var isOnboardingStep: Bool {
-    Self.onboardingSteps.contains(currentScreen)
+    onboardingSteps.contains(currentScreen)
   }
 
   private var currentStepIndex: Int {
-    Self.onboardingSteps.firstIndex(of: currentScreen) ?? 0
+    onboardingSteps.firstIndex(of: currentScreen) ?? 0
   }
 
   var body: some View {
@@ -73,13 +89,21 @@ struct SplashOnboardingRootView: View {
           PermissionsView(
             screenCaptureManager: screenCaptureManager,
             onBack: { navigateBackward(to: showSponsorPrompt ? .sponsor : .language) },
-            onNext: { navigateForward(to: .shortcuts) }
+            onNext: { navigateForward(to: .configAccess) }
+          )
+          .transition(stepTransition)
+
+        case .configAccess:
+          ConfigAccessView(
+            onBack: needsOnboarding ? { navigateBackward(to: .permissions) } : nil,
+            onComplete: handleConfigAccessContinue,
+            onSkip: handleConfigAccessContinue
           )
           .transition(stepTransition)
 
         case .shortcuts:
           ShortcutsView(
-            onBack: { navigateBackward(to: .permissions) },
+            onBack: { navigateBackward(to: .configAccess) },
             onDecline: { navigateForward(to: .diagnostics) },
             onAccept: {
               KeyboardShortcutManager.shared.enable()
@@ -110,7 +134,7 @@ struct SplashOnboardingRootView: View {
         VStack {
           Spacer()
           HStack(spacing: 8) {
-            ForEach(0..<Self.onboardingSteps.count, id: \.self) { index in
+            ForEach(0..<onboardingSteps.count, id: \.self) { index in
               Circle()
                 .fill(index == currentStepIndex ? VSDesignSystem.Colors.primary : VSDesignSystem.Colors.quaternary)
                 .frame(width: 7, height: 7)
@@ -168,6 +192,14 @@ struct SplashOnboardingRootView: View {
 
     if needsOnboarding {
       navigateForward(to: .permissions)
+    } else {
+      dismiss()
+    }
+  }
+
+  private func handleConfigAccessContinue() {
+    if needsOnboarding {
+      navigateForward(to: .shortcuts)
     } else {
       dismiss()
     }

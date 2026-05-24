@@ -64,7 +64,7 @@
 - **Onboarding**: splash screen, first-run language selection, guided permissions setup, and shortcut configuration for first-time users
 - **Localization**: 🇺🇸 English, 🇻🇳 Vietnamese, 🇨🇳 Simplified Chinese, 🇹🇼 Traditional Chinese, 🇪🇸 Spanish, 🇯🇵 Japanese, 🇰🇷 Korean, 🇷🇺 Russian, 🇫🇷 French, and 🇩🇪 German app localization with native macOS per-app language support
 - **Cloud Upload**: privacy-first bring-your-own-storage via AWS S3 or Cloudflare R2 — no third-party servers, manual upload from Quick Access for screenshots, videos, and GIFs, or from Annotate for screenshots, credentials stored in the macOS Keychain with optional password protection, manual encrypted credential import/export for faster setup on another Mac, upload history, configurable auto-expiration (1–90 days or permanent), lifecycle rules, custom domain support
-- **Advanced Settings**: TOML export/import for portable preferences, dotfiles, backup, and machine-to-machine setup via `~/.config/snapzy/config.toml`
+- **Advanced Settings**: TOML export/import, one-time config folder grant, and launch-time auto-apply for portable preferences, dotfiles, backup, and machine-to-machine setup via `~/.config/snapzy/config.toml`
 - **Updates & Diagnostics**: in-app updates via Sparkle, problem reporting with diagnostic log bundles, cache management
 - **Platform**: menu-bar app, appearance theming (light/dark/system), App Sandbox with secure file-access bookmarks
 

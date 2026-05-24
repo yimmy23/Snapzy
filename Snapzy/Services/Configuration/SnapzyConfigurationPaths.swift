@@ -18,10 +18,12 @@ nonisolated enum SnapzyConfigurationPaths {
   }
 
   static var suggestedConfigURL: URL {
-    userHomeDirectory
-      .appendingPathComponent(".config", isDirectory: true)
-      .appendingPathComponent("snapzy", isDirectory: true)
+    suggestedConfigDirectoryURL
       .appendingPathComponent("config.toml")
+  }
+
+  static var suggestedConfigDirectoryURL: URL {
+    suggestedConfigDirectoryURL(homeDirectory: userHomeDirectory)
   }
 
   static func expandedUserPath(_ path: String) -> String {
@@ -32,10 +34,14 @@ nonisolated enum SnapzyConfigurationPaths {
   }
 
   static func suggestedConfigURL(homeDirectory: URL) -> URL {
+    suggestedConfigDirectoryURL(homeDirectory: homeDirectory)
+      .appendingPathComponent("config.toml")
+  }
+
+  static func suggestedConfigDirectoryURL(homeDirectory: URL) -> URL {
     homeDirectory
       .appendingPathComponent(".config", isDirectory: true)
       .appendingPathComponent("snapzy", isDirectory: true)
-      .appendingPathComponent("config.toml")
   }
 
   static func expandedUserPath(_ path: String, homeDirectory: URL) -> String {

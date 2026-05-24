@@ -34,9 +34,6 @@ final class AppCoordinator {
       defaults.set(LogCleanupScheduler.defaultRetentionDays, forKey: PreferencesKeys.diagnosticsRetentionDays)
     }
 
-    LogCleanupScheduler.shared.start()
-    RecordingMetadataCleanupScheduler.shared.start()
-
     // History defaults
     if defaults.object(forKey: PreferencesKeys.historyEnabled) == nil {
       defaults.set(true, forKey: PreferencesKeys.historyEnabled)
@@ -62,6 +59,10 @@ final class AppCoordinator {
       defaults.set(10, forKey: "history.floating.maxDisplayedItems")
     }
 
+    let configurationAutoImportResult = applyUserConfigurationIfNeeded()
+
+    LogCleanupScheduler.shared.start()
+    RecordingMetadataCleanupScheduler.shared.start()
     CaptureHistoryRetentionService.shared.start()
     DiagnosticLogger.shared.log(.debug, .lifecycle, "Background schedulers started")
 
@@ -79,7 +80,7 @@ final class AppCoordinator {
 
     DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
       DiagnosticLogger.shared.log(.debug, .ui, "Splash presentation scheduled")
-      SplashWindowController.shared.show()
+      self.presentStartupExperience(configurationAutoImportResult: configurationAutoImportResult)
     }
 
     observeNotifications()
@@ -121,5 +122,86 @@ final class AppCoordinator {
       "App notifications observed",
       context: ["observerCount": "\(observers.count)"]
     )
+  }
+
+  private func applyUserConfigurationIfNeeded() -> SnapzyConfigurationAutoImportResult {
+    let result = SnapzyConfigurationAutoImporter.applyIfNeededOnLaunch()
+    let context = [
+      "file": result.fileURL.path,
+      "changes": "\(result.appliedChangeCount)",
+      "warnings": "\(result.warningCount)",
+      "errors": "\(result.errorCount)"
+    ]
+
+    switch result.status {
+    case .applied:
+      DiagnosticLogger.shared.log(
+        .info,
+        .preferences,
+        "TOML configuration auto-applied",
+        context: context
+      )
+    case .failed:
+      var failedContext = context
+      if let errorMessage = result.errorMessage {
+        failedContext["error"] = errorMessage
+      }
+      DiagnosticLogger.shared.log(
+        .warning,
+        .preferences,
+        "TOML configuration auto-apply failed",
+        context: failedContext
+      )
+    case .skippedMissingFile:
+      DiagnosticLogger.shared.log(
+        .debug,
+        .preferences,
+        "TOML configuration auto-apply skipped; file missing",
+        context: ["file": result.fileURL.path]
+      )
+    case .skippedPermissionRequired:
+      DiagnosticLogger.shared.log(
+        .debug,
+        .preferences,
+        "TOML configuration auto-apply skipped; folder access required",
+        context: ["file": result.fileURL.path]
+      )
+    case .skippedUnchanged:
+      DiagnosticLogger.shared.log(
+        .debug,
+        .preferences,
+        "TOML configuration auto-apply skipped; file unchanged",
+        context: ["file": result.fileURL.path]
+      )
+    }
+
+    return result
+  }
+
+  private func presentStartupExperience(
+    configurationAutoImportResult: SnapzyConfigurationAutoImportResult
+  ) {
+    if shouldPresentConfigurationAccessOnboarding(for: configurationAutoImportResult) {
+      UserDefaults.standard.set(true, forKey: PreferencesKeys.configurationAccessOnboardingPrompted)
+      DiagnosticLogger.shared.log(.info, .ui, "Configuration access onboarding scheduled")
+      SplashWindowController.shared.showConfigurationAccess()
+      return
+    }
+
+    SplashWindowController.shared.show()
+  }
+
+  private func shouldPresentConfigurationAccessOnboarding(
+    for result: SnapzyConfigurationAutoImportResult
+  ) -> Bool {
+    guard result.status == .skippedPermissionRequired else {
+      return false
+    }
+
+    guard OnboardingFlowView.hasCompletedOnboarding else {
+      return false
+    }
+
+    return !UserDefaults.standard.bool(forKey: PreferencesKeys.configurationAccessOnboardingPrompted)
   }
 }

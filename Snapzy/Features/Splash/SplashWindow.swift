@@ -100,13 +100,31 @@ final class SplashWindowController: NSObject, NSWindowDelegate {
   /// Show splash with integrated onboarding flow.
   /// - Parameter forceOnboarding: When true, always show onboarding steps (used by "Restart Onboarding")
   func show(forceOnboarding: Bool = false) {
+    showWindow(forceOnboarding: forceOnboarding)
+  }
+
+  func showConfigurationAccess() {
+    showWindow(
+      forceOnboarding: false,
+      initialScreen: .configAccess,
+      onboardingSteps: [.configAccess]
+    )
+  }
+
+  private func showWindow(
+    forceOnboarding: Bool,
+    initialScreen: SplashScreen = .splash,
+    onboardingSteps: [SplashScreen]? = nil
+  ) {
     guard let screen = NSScreen.main else {
       DiagnosticLogger.shared.log(.warning, .ui, "Splash skipped because main screen is unavailable")
       return
     }
     let defaults = UserDefaults.standard
+    let isStandardStartup = initialScreen == .splash
 
-    if !forceOnboarding,
+    if isStandardStartup,
+       !forceOnboarding,
        defaults.bool(forKey: PreferencesKeys.splashSkipOnceAfterOnboardingRelaunch),
        OnboardingFlowView.hasCompletedOnboarding,
        defaults.bool(forKey: PreferencesKeys.sponsorPromptSeen) {
@@ -116,7 +134,8 @@ final class SplashWindowController: NSObject, NSWindowDelegate {
     }
 
     // Skip splash entirely when user opted out and no onboarding/sponsor is pending
-    if !forceOnboarding,
+    if isStandardStartup,
+       !forceOnboarding,
        OnboardingFlowView.hasCompletedOnboarding,
        defaults.bool(forKey: PreferencesKeys.sponsorPromptSeen),
        defaults.bool(forKey: PreferencesKeys.splashSkipped) {
@@ -141,18 +160,18 @@ final class SplashWindowController: NSObject, NSWindowDelegate {
       context: [
         "forceOnboarding": forceOnboarding ? "true" : "false",
         "needsOnboarding": needsOnboarding ? "true" : "false",
+        "initialScreen": "\(initialScreen)",
         "showSponsorPrompt": showSponsorPrompt ? "true" : "false",
       ]
     )
 
-    let rootView = SplashOnboardingRootView(
+    attachContent(
+      to: window,
       needsOnboarding: needsOnboarding,
       showSponsorPrompt: showSponsorPrompt,
-      onDismiss: { [weak self] in
-        self?.dismiss()
-      }
+      initialScreen: initialScreen,
+      onboardingSteps: onboardingSteps
     )
-    window.attachContent(rootView)
 
     // Show window and activate
     window.makeKeyAndOrderFront(nil)
@@ -162,6 +181,25 @@ final class SplashWindowController: NSObject, NSWindowDelegate {
     DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
       self?.animateIn()
     }
+  }
+
+  private func attachContent(
+    to window: SplashWindow,
+    needsOnboarding: Bool,
+    showSponsorPrompt: Bool,
+    initialScreen: SplashScreen,
+    onboardingSteps: [SplashScreen]?
+  ) {
+    let rootView = SplashOnboardingRootView(
+      needsOnboarding: needsOnboarding,
+      showSponsorPrompt: showSponsorPrompt,
+      initialScreen: initialScreen,
+      onboardingSteps: onboardingSteps,
+      onDismiss: { [weak self] in
+        self?.dismiss()
+      }
+    )
+    window.attachContent(rootView)
   }
 
   private func animateIn() {

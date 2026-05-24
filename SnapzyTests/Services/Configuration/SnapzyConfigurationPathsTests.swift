@@ -19,6 +19,14 @@ final class SnapzyConfigurationPathsTests: XCTestCase {
     XCTAssertEqual(url.path, "/Users/example/.config/snapzy/config.toml")
   }
 
+  func testSuggestedConfigDirectoryURLUsesProvidedHomeDirectory() {
+    let home = URL(fileURLWithPath: "/Users/example", isDirectory: true)
+
+    let url = SnapzyConfigurationPaths.suggestedConfigDirectoryURL(homeDirectory: home)
+
+    XCTAssertEqual(url.path, "/Users/example/.config/snapzy")
+  }
+
   func testExpandedUserPathUsesProvidedHomeDirectory() {
     let home = URL(fileURLWithPath: "/Users/example", isDirectory: true)
 

@@ -11,14 +11,41 @@ import Sparkle
 
 @MainActor
 enum SnapzyConfigurationImporter {
+  private struct PreparedImport {
+    let issues: [SnapzyConfigurationIssue]
+    let mutations: [() -> Void]
+  }
+
+  static func validateTOML(_ source: String, defaults: UserDefaults = .standard) -> [SnapzyConfigurationIssue] {
+    prepareImport(source, defaults: defaults).issues
+  }
+
   static func importTOML(_ source: String, defaults: UserDefaults = .standard) -> SnapzyConfigurationImportResult {
+    let preparedImport = prepareImport(source, defaults: defaults)
+
+    guard !preparedImport.issues.contains(where: { $0.severity == .error }) else {
+      return SnapzyConfigurationImportResult(appliedChangeCount: 0, issues: preparedImport.issues)
+    }
+
+    preparedImport.mutations.forEach { $0() }
+    KeyboardShortcutManager.shared.refreshShortcutRegistration()
+    CloudManager.shared.reloadStateFromDefaults()
+    defaults.synchronize()
+
+    return SnapzyConfigurationImportResult(
+      appliedChangeCount: preparedImport.mutations.count,
+      issues: preparedImport.issues
+    )
+  }
+
+  private static func prepareImport(_ source: String, defaults: UserDefaults) -> PreparedImport {
     let document: SimpleTOMLDocument
     do {
       document = try SimpleTOMLParser.parse(source)
     } catch {
-      return SnapzyConfigurationImportResult(
-        appliedChangeCount: 0,
-        issues: [SnapzyConfigurationIssue(severity: .error, message: error.localizedDescription)]
+      return PreparedImport(
+        issues: [SnapzyConfigurationIssue(severity: .error, message: error.localizedDescription)],
+        mutations: []
       )
     }
 
@@ -35,16 +62,7 @@ enum SnapzyConfigurationImporter {
     collectAnnotate(&reader, defaults: defaults, mutations: &mutations)
     collectShortcuts(&reader, mutations: &mutations)
 
-    guard !reader.issues.contains(where: { $0.severity == .error }) else {
-      return SnapzyConfigurationImportResult(appliedChangeCount: 0, issues: reader.issues)
-    }
-
-    mutations.forEach { $0() }
-    KeyboardShortcutManager.shared.refreshShortcutRegistration()
-    CloudManager.shared.reloadStateFromDefaults()
-    defaults.synchronize()
-
-    return SnapzyConfigurationImportResult(appliedChangeCount: mutations.count, issues: reader.issues)
+    return PreparedImport(issues: reader.issues, mutations: mutations)
   }
 
   private static func validateSchema(_ reader: inout SnapzyConfigurationReader) {

@@ -202,23 +202,33 @@ enum L10n {
     )
     static let exportTitle = string(
       "preferences-advanced.export-title",
-      defaultValue: "Save settings to a file",
+      defaultValue: "Export backup",
       comment: "Advanced preferences export row title"
     )
     static let exportDescription = string(
       "preferences-advanced.export-description",
-      defaultValue: "Create a portable backup you can keep, sync, or import on another Mac.",
+      defaultValue: "Save portable copy",
       comment: "Advanced preferences export row description"
     )
     static let importTitle = string(
       "preferences-advanced.import-title",
-      defaultValue: "Restore settings from a file",
+      defaultValue: "Import backup",
       comment: "Advanced preferences import row title"
     )
     static let importDescription = string(
       "preferences-advanced.import-description",
-      defaultValue: "Validate a TOML file first, then apply supported Snapzy settings.",
+      defaultValue: "Replace from .toml file",
       comment: "Advanced preferences import row description"
+    )
+    static let restoreDefaultsTitle = string(
+      "preferences-advanced.restore-defaults-title",
+      defaultValue: "Restore defaults",
+      comment: "Advanced preferences restore defaults row title"
+    )
+    static let restoreDefaultsDescription = string(
+      "preferences-advanced.restore-defaults-description",
+      defaultValue: "Reset all settings",
+      comment: "Advanced preferences restore defaults row description"
     )
     static let exportButton = string(
       "preferences-advanced.export-button",
@@ -230,32 +240,69 @@ enum L10n {
       defaultValue: "Import",
       comment: "Import config button"
     )
+    static let restoreDefaultsButton = string(
+      "preferences-advanced.restore-defaults-button",
+      defaultValue: "Restore",
+      comment: "Restore default config button"
+    )
     static let openConfigButton = string(
       "preferences-advanced.open-config-button",
       defaultValue: "Open config.toml",
       comment: "Open TOML config file button"
     )
-    static let lastResultSection = string(
-      "preferences-advanced.last-result-section",
-      defaultValue: "Last Result",
-      comment: "Configuration import/export result section"
+    static let configAccessWarningTitle = string(
+      "preferences-advanced.config-access-warning-title",
+      defaultValue: "Config folder access needed",
+      comment: "Warning title when Snapzy has not been granted config folder access"
     )
-    static func errorsTitle(_ count: Int) -> String {
+    static func configAccessWarningDescription(_ path: String) -> String {
       format(
-        "preferences-advanced.errors-title",
-        defaultValue: "Errors (%d)",
-        comment: "Advanced preferences result errors group title",
-        count
+        "preferences-advanced.config-access-warning-description",
+        defaultValue: "Grant access to %@ once so Snapzy can create config.toml and apply direct edits on launch.",
+        comment: "Warning description when config folder access is missing. %@ is the expected config directory path.",
+        path
       )
     }
-    static func warningsTitle(_ count: Int) -> String {
-      format(
-        "preferences-advanced.warnings-title",
-        defaultValue: "Warnings (%d)",
-        comment: "Advanced preferences result warnings group title",
-        count
-      )
-    }
+    static let grantConfigAccessButton = string(
+      "preferences-advanced.grant-config-access-button",
+      defaultValue: "Grant Access",
+      comment: "Button title to grant config folder access"
+    )
+    static let configAccessRequiredToast = string(
+      "preferences-advanced.config-access-required-toast",
+      defaultValue: "Grant config folder access first.",
+      comment: "Toast shown when a config backup action requires folder access first"
+    )
+    static let configAccessReady = string(
+      "preferences-advanced.config-access-ready",
+      defaultValue: "config.toml is ready.",
+      comment: "Toast shown after config folder access is granted"
+    )
+    static let exportSucceeded = string(
+      "preferences-advanced.export-succeeded",
+      defaultValue: "Config backup exported.",
+      comment: "Toast shown after config export succeeds"
+    )
+    static let openConfigSucceeded = string(
+      "preferences-advanced.open-config-succeeded",
+      defaultValue: "config.toml opened.",
+      comment: "Toast shown after config.toml is opened"
+    )
+    static let importSucceeded = string(
+      "preferences-advanced.import-succeeded",
+      defaultValue: "Backup imported and config.toml replaced.",
+      comment: "Toast shown after a backup import replaces the managed config file"
+    )
+    static let restoreDefaultsSucceeded = string(
+      "preferences-advanced.restore-defaults-succeeded",
+      defaultValue: "Defaults restored.",
+      comment: "Toast shown after settings are restored to defaults"
+    )
+    static let operationFinished = string(
+      "preferences-advanced.operation-finished",
+      defaultValue: "Done.",
+      comment: "Fallback toast when a config backup operation completes"
+    )
     static let openConfigUnavailable = string(
       "preferences-advanced.open-config-unavailable",
       defaultValue: "Could not open config.toml.",
@@ -271,6 +318,40 @@ enum L10n {
       defaultValue: "Import Snapzy Config",
       comment: "Config import open panel title"
     )
+    static let configDirectoryPanelTitle = string(
+      "preferences-advanced.config-directory-panel-title",
+      defaultValue: "Grant Config Folder Access",
+      comment: "Config directory access panel title"
+    )
+    static func configDirectoryPanelMessage(_ path: String) -> String {
+      format(
+        "preferences-advanced.config-directory-panel-message",
+        defaultValue: "Grant access for %@. If the folder is missing, Snapzy will create it automatically.",
+        comment: "Config directory access panel message. %@ is the suggested directory path.",
+        path
+      )
+    }
+    static let configDirectoryPanelPrompt = string(
+      "preferences-advanced.config-directory-panel-prompt",
+      defaultValue: "Grant Access",
+      comment: "Config directory access panel confirmation button"
+    )
+    static func configDirectoryPanelOnboardingMessage(_ path: String) -> String {
+      format(
+        "preferences-advanced.config-directory-panel-onboarding-message",
+        defaultValue: "Grant access for %@. Snapzy will create config.toml there if it is missing.",
+        comment: "Config directory access panel message from onboarding. %@ is the suggested directory path.",
+        path
+      )
+    }
+    static func configDirectoryMismatch(_ path: String) -> String {
+      format(
+        "preferences-advanced.config-directory-mismatch",
+        defaultValue: "Choose %@ to keep Snapzy config in the default dotfiles location.",
+        comment: "Config directory mismatch validation message. %@ is the expected directory path.",
+        path
+      )
+    }
     static func exported(_ path: String) -> String {
       format(
         "preferences-advanced.exported",
@@ -284,6 +365,14 @@ enum L10n {
         "preferences-advanced.opened-config",
         defaultValue: "Opened config.toml from %@",
         comment: "Config file opened success message",
+        path
+      )
+    }
+    static func configAccessGranted(_ path: String) -> String {
+      format(
+        "preferences-advanced.config-access-granted",
+        defaultValue: "Config folder access granted. config.toml is ready at %@",
+        comment: "Config folder access success message. %@ is the config file path.",
         path
       )
     }
@@ -312,6 +401,21 @@ enum L10n {
       "preferences-advanced.import-failed",
       defaultValue: "Config import failed.",
       comment: "Config import failure message"
+    )
+    static let restoreDefaultsFailed = string(
+      "preferences-advanced.restore-defaults-failed",
+      defaultValue: "Could not restore defaults.",
+      comment: "Config restore defaults failure message"
+    )
+    static let restoreDefaultsConfirmationTitle = string(
+      "preferences-advanced.restore-defaults-confirmation-title",
+      defaultValue: "Restore default settings?",
+      comment: "Restore defaults confirmation alert title"
+    )
+    static let restoreDefaultsConfirmationMessage = string(
+      "preferences-advanced.restore-defaults-confirmation-message",
+      defaultValue: "Snapzy will replace config.toml with default values, reset app settings, and clear cloud credentials. Saved captures are not deleted.",
+      comment: "Restore defaults confirmation alert message"
     )
     static func importFailedWithErrors(_ count: Int) -> String {
       format(
@@ -1131,6 +1235,45 @@ enum L10n {
       "onboarding.permissions.identity-blocked-description",
       defaultValue: "Granted in System Settings, but this build cannot use the permission until the identity issues below are fixed.",
       comment: "Description shown when screen recording permission exists but app identity prevents using it"
+    )
+
+    static let configAccessTitle = string(
+      "onboarding.config-access.title",
+      defaultValue: "Set Up config.toml",
+      comment: "Onboarding config access step title"
+    )
+    static let configAccessSubtitle = string(
+      "onboarding.config-access.subtitle",
+      defaultValue: "Snapzy uses a TOML file for portable settings, backups, and dotfile workflows.",
+      comment: "Onboarding config access step subtitle"
+    )
+    static let configAccessFolderTitle = string(
+      "onboarding.config-access.folder-title",
+      defaultValue: "Config Folder",
+      comment: "Onboarding config access permission row title"
+    )
+    static func configAccessFolderDescription(_ path: String) -> String {
+      format(
+        "onboarding.config-access.folder-description",
+        defaultValue: "Grant %@ once. Snapzy will create config.toml and apply valid direct edits on launch.",
+        comment: "Onboarding config access permission row description. %@ is the expected config directory path.",
+        path
+      )
+    }
+    static let configAccessPrivacyNote = string(
+      "onboarding.config-access.privacy-note",
+      defaultValue: "This only grants Snapzy access to its config folder. It does not import secrets or scan your files.",
+      comment: "Privacy note on onboarding config access step"
+    )
+    static let configAccessReady = string(
+      "onboarding.config-access.ready",
+      defaultValue: "config.toml is ready.",
+      comment: "Success message after config folder access is granted"
+    )
+    static let configAccessLater = string(
+      "onboarding.config-access.later",
+      defaultValue: "Later",
+      comment: "Secondary action to skip config access setup for now"
     )
 
     static let shortcutsTitle = string(

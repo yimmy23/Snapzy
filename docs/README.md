@@ -77,7 +77,13 @@ flowchart TD
 - Full Annotate drag-to-app closes the editor by default. Settings → Annotate → `Close after drop` can be turned off to keep the editor session alive after sharing a rendered copy; `Reactivate after drop` controls whether that preserved editor is activated after drop.
 - During recording, the menu bar item stays menu-first instead of left-click-to-stop. It shows the live timer, keeps Preferences reachable, and temporarily excludes the Settings window from own-app recordings when needed.
 - Settings -> Advanced exports and imports portable TOML preferences. The
-  suggested path is `~/.config/snapzy/config.toml`, but import/export always
-  happens through user-confirmed macOS panels.
+  default path is `~/.config/snapzy/config.toml`; Backup actions stay disabled
+  until macOS folder access is granted once, then Snapzy creates the folder/file
+  if missing and reuses the security-scoped bookmark. Direct edits to that file
+  are applied on the next app launch when the TOML is valid. Explicit Import
+  replaces the managed config file before applying it; Restore defaults replaces
+  it with generated defaults after confirmation. Existing users see the
+  onboarding flow open directly on the config access step once after upgrading;
+  Settings -> Advanced shows the same grant action when access is still missing.
 
 If one of these behaviors changes, update this file, [`STRUCTURE.md`](STRUCTURE.md), [`CAPTURE.md`](CAPTURE.md), and the root [`README.md`](../README.md) in the same change.

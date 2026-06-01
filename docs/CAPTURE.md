@@ -118,12 +118,15 @@ flowchart TD
     G --> H["Phase 2: annotating — canvas + toolbar + properties + action rail"]
     H --> I["User draws annotations"]
     H --> J["Move/resize selection (annotations offset automatically)"]
+    H --> P0["Pin: save annotated image + open pinned screenshot window"]
     I --> K["Finish: Cmd+S, Enter, or Done button"]
     J --> K
+    P0 --> L
     K --> L["AnnotateExporter.renderFinalImage()"]
     L --> M["ScreenCaptureManager.saveProcessedImage()"]
     M --> N["PostCaptureActionHandler"]
     N --> O["Quick Access / clipboard / auto-open"]
+    N --> P1["Pinned screenshot window when Pin was chosen"]
 ```
 
 ### Inline Overlay Shortcuts
@@ -159,7 +162,7 @@ Crop and Mockup are **not** available in the inline overlay (full editor only).
 - **Move selection**: Hold `Space` and drag, or use the move handle in the toolbar.
 - **Resize selection**: Drag any of the 8 handles (corners + edges) around the selection; cursor feedback changes per edge.
 - **Quick Properties Bar**: Appears below the toolbar when a drawable tool is active. Shows context-aware controls: primary color, text background, blur type, arrow style, watermark text/style/opacity/rotation, stroke width, font size, corner radius. Filled Rectangle applies the primary color to both border and fill. Favorite colors are capped at 4 per role to match the visible quick swatches. By default, tool defaults such as primary color, stroke width, font size, corner radius, and watermark opacity/rotation are shared across compatible tools when no specific annotation is selected; users can turn off Settings → Annotate → Sync tool defaults to keep per-tool defaults independent. Selected-item numeric edits stay local to that annotation; selected-item primary color edits update future defaults only while sync is enabled.
-- **Action Rail**: Side rail with Done (prominent), Cancel, and Copy-to-Clipboard.
+- **Action Rail**: Side rail with Pin-to-Screen, Cancel, Done (prominent), and Copy-to-Clipboard. Pin saves the current annotated image, runs the normal screenshot post-capture pipeline once, then opens the saved image in a pinned screenshot window.
 - **Multiple displays**: Capture Markup freezes every available display before showing the overlay, opens one coordinated panel per frozen display, maps display frames into one desktop coordinate space, tracks cross-display drags with a shared monitor, and uses `FrozenAreaCaptureSession.cropCompositeImage()` when the selected region spans display boundaries.
 - **Cross-Spaces**: The overlay is an `NSPanel` at `.screenSaver` level with `canJoinAllSpaces` and `fullScreenAuxiliary`, so it works across Spaces.
 

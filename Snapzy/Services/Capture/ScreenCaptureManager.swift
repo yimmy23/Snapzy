@@ -1067,14 +1067,16 @@ final class ScreenCaptureManager: ObservableObject {
     to directory: URL,
     fileName: String? = nil,
     format: ImageFormat = .png,
-    scaleFactor: CGFloat? = nil
+    scaleFactor: CGFloat? = nil,
+    emitCompletion: Bool = true
   ) async -> CaptureResult {
     await saveImage(
       image,
       to: directory,
       fileName: fileName,
       format: format,
-      scaleFactor: scaleFactor
+      scaleFactor: scaleFactor,
+      emitCompletion: emitCompletion
     )
   }
 

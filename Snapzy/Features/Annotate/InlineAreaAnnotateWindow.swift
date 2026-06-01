@@ -985,8 +985,8 @@ enum InlineAreaLayout {
   static let controlPanelOuterHorizontalInset: CGFloat = 12
   static let minimumSelectionSize: CGFloat = 24
   static let actionRailWidth: CGFloat = InlineAreaToolbarMetrics.iconButtonSize + InlineAreaToolbarMetrics.actionRailPadding * 2
-  static let actionRailHeight: CGFloat = InlineAreaToolbarMetrics.iconButtonSize * 3
-    + InlineAreaToolbarMetrics.actionRailSpacing * 3
+  static let actionRailHeight: CGFloat = InlineAreaToolbarMetrics.iconButtonSize * 4
+    + InlineAreaToolbarMetrics.actionRailSpacing * 4
     + InlineAreaToolbarMetrics.actionRailDividerHeight
     + InlineAreaToolbarMetrics.actionRailDividerVerticalPadding * 2
     + InlineAreaToolbarMetrics.actionRailPadding * 2
@@ -1307,7 +1307,7 @@ private enum InlineAreaChrome {
   static let cornerRadius: CGFloat = InlineAreaToolbarMetrics.toolbarCornerRadius
   static let controlCornerRadius: CGFloat = InlineAreaToolbarMetrics.buttonCornerRadius
   static let controlSize: CGFloat = InlineAreaToolbarMetrics.iconButtonSize
-  static let moveControlWidth: CGFloat = 56
+  static let moveControlWidth: CGFloat = 72
   static let propertyControlHeight: CGFloat = 24
   static let itemBackground = Color.primary.opacity(0.06)
   static let itemSelectedBackground = Color.primary.opacity(0.12)
@@ -1437,6 +1437,8 @@ private struct InlineAreaControlDeck<MoveGesture: Gesture>: View {
         InlineAreaMoveHandle()
           .gesture(moveGesture)
 
+        InlineAreaDivider()
+
         ForEach(Array(AnnotationToolType.inlineToolGroups.enumerated()), id: \.offset) { index, tools in
           if index > 0 {
             InlineAreaDivider()
@@ -1527,15 +1529,13 @@ private struct InlineAreaMoveHandle: View {
   @State private var isHovering = false
 
   var body: some View {
-    HStack(spacing: 5) {
+    HStack(spacing: 6) {
       Image(systemName: "arrow.up.and.down.and.arrow.left.and.right")
         .font(.system(size: 12, weight: .medium))
-        .frame(width: 14, height: InlineAreaChrome.controlSize)
 
       Text("Space")
-        .font(.system(size: 10, weight: .semibold))
+        .font(.system(size: 11, weight: .semibold))
         .lineLimit(1)
-        .minimumScaleFactor(0.85)
     }
     .foregroundColor(.primary.opacity(isHovering ? 1.0 : 0.85))
     .frame(width: InlineAreaChrome.moveControlWidth, height: InlineAreaChrome.controlSize)
@@ -2559,6 +2559,10 @@ private struct InlineAreaActionRail: View {
 
   var body: some View {
     VStack(spacing: InlineAreaToolbarMetrics.actionRailSpacing) {
+      InlineAreaIconButton(icon: "pin", tooltip: L10n.PreferencesQuickAccess.pinToScreenAction) {
+        Task { await session.finishAndPin() }
+      }
+
       InlineAreaIconButton(icon: "xmark", tooltip: L10n.Common.cancel) {
         session.cancel()
       }

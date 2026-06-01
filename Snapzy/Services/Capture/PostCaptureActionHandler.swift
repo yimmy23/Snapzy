@@ -44,11 +44,18 @@ final class PostCaptureActionHandler {
   // MARK: - Public API
 
   /// Execute all enabled post-capture actions for a screenshot
-  func handleScreenshotCapture(url: URL) async {
-    await executeActions(for: .screenshot, url: url)
+  @discardableResult
+  func handleScreenshotCapture(url: URL, pinToScreen: Bool = false) async -> QuickAccessItem? {
+    let quickAccessItem = await executeActions(
+      for: .screenshot,
+      url: url,
+      pinToScreen: pinToScreen
+    )
 
     // Add to capture history
     await addScreenshotToHistory(url: url)
+
+    return quickAccessItem
   }
 
   /// Execute post-capture actions for a batch of screenshots, such as
@@ -272,7 +279,13 @@ final class PostCaptureActionHandler {
 
   // MARK: - Private
 
-  private func executeActions(for captureType: CaptureType, url: URL, skipQuickAccess: Bool = false) async {
+  @discardableResult
+  private func executeActions(
+    for captureType: CaptureType,
+    url: URL,
+    skipQuickAccess: Bool = false,
+    pinToScreen: Bool = false
+  ) async -> QuickAccessItem? {
     let scopedAccess = fileAccess.beginAccessingURL(url)
     defer { scopedAccess.stop() }
 
@@ -285,7 +298,7 @@ final class PostCaptureActionHandler {
         "Post-capture actions skipped; file missing",
         context: ["captureType": captureType.rawValue, "fileName": url.lastPathComponent]
       )
-      return
+      return nil
     }
 
     logger.info("Executing post-capture actions for \(captureType == .screenshot ? "screenshot" : "recording"): \(url.lastPathComponent)")
@@ -342,6 +355,20 @@ final class PostCaptureActionHandler {
       )
     }
 
+    if captureType == .screenshot && pinToScreen {
+      if let quickAccessItem {
+        quickAccess.pinScreenshot(id: quickAccessItem.id)
+      } else {
+        quickAccessItem = await quickAccess.pinScreenshot(url: url)
+      }
+      DiagnosticLogger.shared.log(
+        .info,
+        .action,
+        "Post-capture pin action executed",
+        context: ["fileName": url.lastPathComponent]
+      )
+    }
+
     // Copy file to clipboard
     if preferences.isActionEnabled(.copyFile, for: captureType) {
       copyToClipboard(url: url, isVideo: captureType == .recording)
@@ -370,6 +397,8 @@ final class PostCaptureActionHandler {
         context: ["fileName": url.lastPathComponent]
       )
     }
+
+    return quickAccessItem
   }
 
   /// Copy file to clipboard (format-aware image data for screenshots, file URL for videos)

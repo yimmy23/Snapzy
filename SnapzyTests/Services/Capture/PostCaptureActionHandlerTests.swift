@@ -266,6 +266,34 @@ final class PostCaptureActionHandlerTests: XCTestCase {
     AnnotateManager.shared.clearSessionData(for: item.id)
   }
 
+  func testHandleScreenshotCapture_pinToScreenPinsCreatedQuickAccessItem() async throws {
+    preferences.setAction(.copyFile, for: .screenshot, enabled: false)
+    let fakeQuickAccess = FakeQuickAccessManager()
+    let handler = makeHandler(quickAccess: fakeQuickAccess)
+
+    let returnedItem = await handler.handleScreenshotCapture(url: tempFileURL, pinToScreen: true)
+
+    let item = try XCTUnwrap(fakeQuickAccess.createdScreenshotItems.first)
+    XCTAssertEqual(returnedItem?.id, item.id)
+    XCTAssertEqual(fakeQuickAccess.addedScreenshots, [tempFileURL])
+    XCTAssertEqual(fakeQuickAccess.pinnedScreenshotIDs, [item.id])
+    XCTAssertTrue(fakeQuickAccess.pinnedScreenshotURLs.isEmpty)
+  }
+
+  func testHandleScreenshotCapture_pinToScreenPinsURLWhenQuickAccessActionDisabled() async throws {
+    preferences.setAction(.showQuickAccess, for: .screenshot, enabled: false)
+    preferences.setAction(.copyFile, for: .screenshot, enabled: false)
+    let fakeQuickAccess = FakeQuickAccessManager()
+    let handler = makeHandler(quickAccess: fakeQuickAccess)
+
+    let returnedItem = await handler.handleScreenshotCapture(url: tempFileURL, pinToScreen: true)
+
+    XCTAssertNotNil(returnedItem)
+    XCTAssertTrue(fakeQuickAccess.addedScreenshots.isEmpty)
+    XCTAssertTrue(fakeQuickAccess.pinnedScreenshotIDs.isEmpty)
+    XCTAssertEqual(fakeQuickAccess.pinnedScreenshotURLs, [tempFileURL])
+  }
+
   // MARK: - AfterCaptureAction Properties
 
   func testAfterCaptureAction_allCases() {

@@ -494,6 +494,55 @@ final class QuickAccessManager: ObservableObject {
     setPinState(id: id, isPinned: !items[index].isPinned, closePinWindow: true)
   }
 
+  /// Pin a screenshot item without toggling it back off.
+  func pinScreenshot(id: UUID) {
+    setPinState(id: id, isPinned: true, closePinWindow: false)
+  }
+
+  /// Pin a saved screenshot URL, creating a transient pin window if no Quick Access item owns it.
+  @discardableResult
+  func pinScreenshot(url: URL) async -> QuickAccessItem? {
+    if let existingItem = item(matching: url) {
+      pinScreenshot(id: existingItem.id)
+      return item(matching: url) ?? existingItem
+    }
+
+    let fileAccess = fileAccessManager.beginAccessingURL(url)
+    defer { fileAccess.stop() }
+
+    guard FileManager.default.fileExists(atPath: url.path) else {
+      DiagnosticLogger.shared.log(
+        .warning,
+        .action,
+        "Quick access direct pin skipped; file missing",
+        context: ["fileName": url.lastPathComponent]
+      )
+      return nil
+    }
+
+    let result = await ThumbnailGenerator.generate(from: url)
+    let thumbnail = result.thumbnail ?? ThumbnailGenerator.placeholderThumbnail()
+    let item = QuickAccessItem(url: url, thumbnail: thumbnail)
+    let didShowWindow = pinWindowManager.show(item: item) { closedId in
+      DiagnosticLogger.shared.log(
+        .debug,
+        .action,
+        "Transient pinned screenshot closed",
+        context: ["itemId": closedId.uuidString]
+      )
+    }
+
+    guard didShowWindow else { return nil }
+
+    DiagnosticLogger.shared.log(
+      .info,
+      .action,
+      "Screenshot URL pinned directly",
+      context: ["fileName": url.lastPathComponent, "itemId": item.id.uuidString]
+    )
+    return item
+  }
+
   private func setPinState(id: UUID, isPinned: Bool, closePinWindow: Bool) {
     guard let index = items.firstIndex(where: { $0.id == id }) else {
       if closePinWindow {

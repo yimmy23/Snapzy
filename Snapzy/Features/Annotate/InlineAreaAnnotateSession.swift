@@ -229,6 +229,14 @@ final class InlineAreaAnnotateSession: ObservableObject {
   }
 
   func finish() async {
+    await finish(pinToScreen: false)
+  }
+
+  func finishAndPin() async {
+    await finish(pinToScreen: true)
+  }
+
+  private func finish(pinToScreen: Bool) async {
     guard phase == .annotating else { return }
     if let selectionRect, let crop = cropImage(for: selectionRect) {
       self.selectionRect = crop.localRect
@@ -245,15 +253,19 @@ final class InlineAreaAnnotateSession: ObservableObject {
       cgImage,
       to: saveDirectory,
       format: outputFormat,
-      scaleFactor: Self.imageScale(renderedImage)
+      scaleFactor: Self.imageScale(renderedImage),
+      emitCompletion: !pinToScreen
     )
 
     if case .success = result {
       SoundManager.playScreenshotCapture()
     }
-    complete(result)
     if case .success(let url) = result {
       persistCommittedSession(for: url)
+    }
+    complete(result)
+    if pinToScreen, case .success(let url) = result {
+      await PostCaptureActionHandler.shared.handleScreenshotCapture(url: url, pinToScreen: true)
     }
   }
 

@@ -2065,12 +2065,17 @@ final class AnnotateState: ObservableObject {
         AnnotateImageRotation.rotatePoint($0, oldSize: oldSize, clockwise: clockwise)
       })
 
-    case .rectangle, .filledRectangle, .oval, .text, .blur, .counter, .watermark, .embeddedImage:
+    case .text:
+      rotated.bounds = AnnotateImageRotation.rotateLayoutRectPreservingSize(
+        annotation.bounds,
+        oldSize: oldSize,
+        clockwise: clockwise
+      )
+
+    case .rectangle, .filledRectangle, .oval, .blur, .counter, .watermark, .embeddedImage:
       // Bounds-only annotations: the rotated `bounds` above is the full transform we need.
-      // Per-annotation `rotationDegrees` (text/watermark) is clamped to ±45° so we deliberately
-      // leave it unchanged; the bounding box moves correctly but inner text orientation stays
-      // relative to the original canvas. Acceptable for v1 since rotation is typically applied
-      // before annotating.
+      // Watermark `rotationDegrees` is user-controlled and clamped to ±45°, so we leave it
+      // unchanged while moving the watermark region with the canvas.
       break
     }
 

@@ -58,8 +58,8 @@ extension NSImage {
   }
 }
 
-/// Pure geometry helpers for rotating annotation coordinates in image-pixel space
-/// (top-left origin, y-down).
+/// Pure geometry helpers for rotating annotation coordinates in image space.
+/// Annotation storage follows AppKit/Core Graphics coordinates (bottom-left origin, y-up).
 enum AnnotateImageRotation {
   /// Rotate a point 90° within an image of `oldSize`.
   static func rotatePoint(
@@ -68,9 +68,9 @@ enum AnnotateImageRotation {
     clockwise: Bool
   ) -> CGPoint {
     if clockwise {
-      return CGPoint(x: oldSize.height - point.y, y: point.x)
-    } else {
       return CGPoint(x: point.y, y: oldSize.width - point.x)
+    } else {
+      return CGPoint(x: oldSize.height - point.y, y: point.x)
     }
   }
 
@@ -83,18 +83,42 @@ enum AnnotateImageRotation {
     let standardised = rect.standardized
     if clockwise {
       return CGRect(
-        x: oldSize.height - standardised.minY - standardised.height,
-        y: standardised.minX,
-        width: standardised.height,
-        height: standardised.width
-      )
-    } else {
-      return CGRect(
         x: standardised.minY,
         y: oldSize.width - standardised.minX - standardised.width,
         width: standardised.height,
         height: standardised.width
       )
+    } else {
+      return CGRect(
+        x: oldSize.height - standardised.minY - standardised.height,
+        y: standardised.minX,
+        width: standardised.height,
+        height: standardised.width
+      )
     }
+  }
+
+  /// Rotate a layout rect by moving its centre through the 90° canvas transform
+  /// while preserving its own width/height. Text annotations use their bounds as
+  /// a readable layout box, not as physical shape geometry, so swapping dimensions
+  /// would make single-line text wrap after a quarter-turn.
+  static func rotateLayoutRectPreservingSize(
+    _ rect: CGRect,
+    oldSize: CGSize,
+    clockwise: Bool
+  ) -> CGRect {
+    let standardised = rect.standardized
+    let rotatedCenter = rotatePoint(
+      CGPoint(x: standardised.midX, y: standardised.midY),
+      oldSize: oldSize,
+      clockwise: clockwise
+    )
+
+    return CGRect(
+      x: rotatedCenter.x - standardised.width / 2,
+      y: rotatedCenter.y - standardised.height / 2,
+      width: standardised.width,
+      height: standardised.height
+    )
   }
 }

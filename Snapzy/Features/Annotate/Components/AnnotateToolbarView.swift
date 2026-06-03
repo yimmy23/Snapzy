@@ -69,6 +69,23 @@ struct AnnotateToolbarView: View {
       }
       .help(L10n.AnnotateUI.crop)
 
+      ToolbarButton(
+        icon: "rectangle.on.rectangle",
+        isSelected: state.showSidebar,
+        highlightColor: .blue
+      ) {
+        state.toggleSidebarVisibility()
+      }
+      .help(L10n.AnnotateUI.toggleSidebar)
+
+      ToolbarDivider()
+
+      rotateButtonsGroup
+    }
+  }
+
+  private var rotateButtonsGroup: some View {
+    HStack(spacing: 4) {
       ToolbarButton(icon: "rotate.left", isSelected: false) {
         state.rotateImage(clockwise: false)
       }
@@ -82,15 +99,6 @@ struct AnnotateToolbarView: View {
       .help(L10n.AnnotateUI.rotateRight)
       .disabled(!state.canRotateImage)
       .opacity(state.canRotateImage ? 1 : 0.4)
-
-      ToolbarButton(
-        icon: "rectangle.on.rectangle",
-        isSelected: state.showSidebar,
-        highlightColor: .blue
-      ) {
-        state.toggleSidebarVisibility()
-      }
-      .help(L10n.AnnotateUI.toggleSidebar)
     }
   }
 

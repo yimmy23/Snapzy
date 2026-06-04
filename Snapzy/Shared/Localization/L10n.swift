@@ -2950,8 +2950,23 @@ enum L10n {
     )
     static let supportDescription = string(
       "preferences-about.support-description",
-      defaultValue: "Snapzy is open-source. Sponsor ongoing development if it helps your workflow.",
+      defaultValue: "Snapzy is open-source. Sponsor if it helps your workflow.",
       comment: "About screen sponsor card description"
+    )
+    static let sponsorButtonGithub = string(
+      "preferences-about.sponsor-button-github",
+      defaultValue: "Sponsor",
+      comment: "GitHub Sponsors action button label"
+    )
+    static let sponsorButtonKofi = string(
+      "preferences-about.sponsor-button-kofi",
+      defaultValue: "Tip",
+      comment: "Ko-fi action button label"
+    )
+    static let sponsorButtonPaypal = string(
+      "preferences-about.sponsor-button-paypal",
+      defaultValue: "Donate",
+      comment: "PayPal action button label"
     )
   }
 

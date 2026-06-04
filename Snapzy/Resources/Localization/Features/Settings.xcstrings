@@ -2265,7 +2265,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Snapzy is open-source. Sponsor ongoing development if it helps your workflow."
+            "value": "Snapzy is open-source. Sponsor if it helps your workflow."
           }
         },
         "es": {
@@ -2301,7 +2301,7 @@
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Snapzy là mã nguồn mở. Hãy ủng hộ việc phát triển nếu nó hữu ích cho công việc của bạn."
+            "value": "Snapzy là mã nguồn mở. Hãy ủng hộ nếu nó hữu ích cho công việc của bạn."
           }
         },
         "zh-Hans": {

@@ -122,49 +122,96 @@ struct AboutSettingsView: View {
 
   private var sponsorSection: some View {
     VStack(alignment: .center, spacing: Spacing.sm) {
-      VStack(spacing: 6) {
-        Text(L10n.PreferencesAbout.supportTitle)
-          .font(.system(size: 14, weight: .semibold))
+      Text(L10n.PreferencesAbout.supportTitle)
+        .font(.system(size: 11, weight: .bold))
+        .foregroundColor(.secondary)
 
-        Text(L10n.PreferencesAbout.supportDescription)
-          .font(.system(size: 12))
-          .foregroundColor(.secondary)
-          .multilineTextAlignment(.center)
-      }
+      VStack(spacing: 0) {
+        let links = SponsorLinks.all
+        ForEach(Array(links.enumerated()), id: \.element.id) { index, link in
+          SponsorRowView(link: link)
 
-      HStack(spacing: Spacing.sm) {
-        ForEach(SponsorLinks.all) { link in
-          Button {
-            NSWorkspace.shared.open(link.url)
-          } label: {
-            VStack(spacing: 4) {
-              Image(systemName: link.systemImage)
-                .font(.system(size: 13))
-                .foregroundStyle(link.color)
-              Text(link.title)
-                .font(.system(size: 11, weight: .medium))
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, Spacing.sm)
-            .background(Color.primary.opacity(0.04))
-            .clipShape(RoundedRectangle(cornerRadius: Size.radiusLg))
-            .overlay(
-              RoundedRectangle(cornerRadius: Size.radiusLg)
-                .stroke(Color.primary.opacity(0.08), lineWidth: 1)
-            )
+          if index < links.count - 1 {
+            Divider()
+              .padding(.horizontal, Spacing.md)
           }
-          .buttonStyle(.plain)
         }
       }
+      .background(Color.primary.opacity(0.03))
+      .clipShape(RoundedRectangle(cornerRadius: Size.radiusLg))
+      .overlay(
+        RoundedRectangle(cornerRadius: Size.radiusLg)
+          .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+      )
+
+      Text(L10n.PreferencesAbout.supportDescription)
+        .font(.system(size: 10.5))
+        .foregroundColor(.secondary)
+        .multilineTextAlignment(.center)
+        .lineLimit(nil)
+        .frame(maxWidth: 360)
     }
-    .padding(Spacing.md)
     .frame(maxWidth: 420)
-    .background(Color.primary.opacity(0.03))
-    .clipShape(RoundedRectangle(cornerRadius: Size.radiusLg))
-    .overlay(
-      RoundedRectangle(cornerRadius: Size.radiusLg)
-        .stroke(Color.primary.opacity(0.08), lineWidth: 1)
-    )
+  }
+}
+
+struct SponsorRowView: View {
+  let link: SponsorLink
+  @State private var isHovering = false
+
+  var body: some View {
+    Button {
+      NSWorkspace.shared.open(link.url)
+    } label: {
+      HStack(spacing: Spacing.md) {
+        // Icon with a nice colored gradient background
+        ZStack {
+          LinearGradient(
+            colors: [link.color.opacity(0.8), link.color],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+          )
+
+          Image(systemName: link.systemImage)
+            .font(.system(size: 13, weight: .bold))
+            .foregroundColor(.white)
+        }
+        .frame(width: 30, height: 30)
+        .clipShape(RoundedRectangle(cornerRadius: 7))
+        .shadow(color: link.color.opacity(0.15), radius: 2, x: 0, y: 1)
+
+        // Title and description
+        VStack(alignment: .leading, spacing: 2) {
+          Text(link.title)
+            .font(.system(size: 13, weight: .medium))
+            .foregroundColor(.primary)
+
+          Text(link.subtitle)
+            .font(.system(size: 11))
+            .foregroundColor(.secondary)
+        }
+
+        Spacer()
+
+        // Action button styled text
+        Text(link.actionTitle)
+          .font(.system(size: 11, weight: .semibold))
+          .padding(.horizontal, 10)
+          .padding(.vertical, 4)
+          .background(isHovering ? Color.accentColor : Color.primary.opacity(0.06))
+          .foregroundColor(isHovering ? .white : .primary)
+          .clipShape(Capsule())
+          .animation(.easeInOut(duration: 0.12), value: isHovering)
+      }
+      .padding(.horizontal, Spacing.md)
+      .padding(.vertical, 10)
+      .contentShape(Rectangle()) // Entire row is clickable
+      .background(isHovering ? Color.primary.opacity(0.04) : Color.clear)
+    }
+    .buttonStyle(.plain)
+    .onHover { hovering in
+      isHovering = hovering
+    }
   }
 }
 

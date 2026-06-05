@@ -52,6 +52,14 @@ final class CaptureHistoryRetentionService {
       DiagnosticLogger.shared.log(.debug, .history, "Capture history retention sweep skipped; history disabled")
       return
     }
+    guard CaptureHistoryStore.shared.isDatabaseAvailable else {
+      DiagnosticLogger.shared.log(
+        .warning,
+        .history,
+        "Capture history retention sweep skipped; database unavailable"
+      )
+      return
+    }
 
     let retentionDays = userDefaults.integer(forKey: PreferencesKeys.historyRetentionDays)
     let maxCount = userDefaults.integer(forKey: PreferencesKeys.historyMaxCount)
@@ -109,6 +117,8 @@ final class CaptureHistoryRetentionService {
     maxCount: Int
   ) -> [String] {
     let store = CaptureHistoryStore.shared
+    guard store.isDatabaseAvailable else { return [] }
+
     let tempManager = TempCaptureManager.shared
 
     var pathsToDelete: [String] = []
@@ -144,6 +154,8 @@ final class CaptureHistoryRetentionService {
   /// Delete temp files only if they are no longer referenced by any history record
   private func deleteUnreferencedTempFiles(paths: [String]) {
     let store = CaptureHistoryStore.shared
+    guard store.isDatabaseAvailable else { return }
+
     let fm = FileManager.default
 
     for path in paths {
@@ -174,7 +186,16 @@ final class CaptureHistoryRetentionService {
 
   /// Delete all history records and thumbnails, leaving capture files untouched
   func clearAllHistory() {
-    CaptureHistoryStore.shared.removeAll()
+    guard CaptureHistoryStore.shared.removeAll() else {
+      logger.error("Clear all history skipped sidecar cleanup because database rows were not removed")
+      DiagnosticLogger.shared.log(
+        .warning,
+        .history,
+        "Clear all history skipped sidecar cleanup; database rows were not removed"
+      )
+      return
+    }
+
     HistoryThumbnailGenerator.shared.clearAllThumbnails()
     annotationSessionStore.deleteAllSessions()
     logger.info("All history cleared by user request")
@@ -187,6 +208,14 @@ final class CaptureHistoryRetentionService {
   private func cleanupOrphanedThumbnails() async {
     let generator = HistoryThumbnailGenerator.shared
     let store = CaptureHistoryStore.shared
+    guard store.isDatabaseAvailable else {
+      DiagnosticLogger.shared.log(
+        .warning,
+        .history,
+        "Capture history orphan thumbnail cleanup skipped; database unavailable"
+      )
+      return
+    }
 
     let fm = FileManager.default
     let thumbsDir = generator.thumbnailsDirectory
@@ -230,6 +259,15 @@ final class CaptureHistoryRetentionService {
   }
 
   private func cleanupOrphanedAnnotationSessions() {
+    guard CaptureHistoryStore.shared.isDatabaseAvailable else {
+      DiagnosticLogger.shared.log(
+        .warning,
+        .history,
+        "Capture history annotation session cleanup skipped; database unavailable"
+      )
+      return
+    }
+
     let activeScreenshotPaths = Set(
       CaptureHistoryStore.shared.records
         .filter { $0.captureType == .screenshot }

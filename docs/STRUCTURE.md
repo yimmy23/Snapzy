@@ -246,6 +246,10 @@ SnapzyUITests/
       assets/
         <uuid>.bin               # optional embedded image assets
   snapzy.db
+  DatabaseRecovery-<yyyyMMdd-HHmmss>[-N]/   # database files archived by launch recovery
+    snapzy.db
+    snapzy.db-wal
+    snapzy.db-shm
 
 ~/.config/snapzy/
   config.toml                  # user-managed export/import + startup auto-apply + background sync path
@@ -257,7 +261,7 @@ SnapzyUITests/
 | `Keychain` | Cloud access key, secret key, optional cloud protection password |
 | `Application Support/Snapzy/Captures/` | Temp captures, per-session recording processing files, and recording metadata sidecars |
 | `Application Support/Snapzy/AnnotationSessions/` | Sidecar packages for committed editable screenshot annotation sessions |
-| `Application Support/Snapzy/snapzy.db` | Cloud upload history via GRDB |
+| `Application Support/Snapzy/snapzy.db` | Capture history and cloud upload history via GRDB |
 | `~/.config/snapzy/config.toml` | User-managed TOML preferences file, created from the onboarding config access step or Settings -> Advanced after user-confirmed folder access, replaced by explicit Import/Restore defaults actions, auto-applied on launch when changed, and synced from current settings before Open config.toml when safe |
 
 ## Implementation Notes That Matter
@@ -274,6 +278,7 @@ SnapzyUITests/
 - Settings → Annotate owns full-editor Annotate preferences, including clipboard-image import behavior, `Close after drop`, and `Reactivate after drop`. `Close after drop` defaults on for legacy behavior; `AnnotateWindowController` reads both drag preferences when a drag-to-app session completes.
 - `AnnotateManager` restores screenshot editability from the Quick Access session cache first, then `AnnotationSessionStore`, then the flattened screenshot file. `AnnotationSessionStore` stores only committed sessions and validates the source file signature before returning editable data.
 - `TempCaptureManager` is where the `Save` after-capture toggle becomes real behavior. Recording uses an internal per-session processing directory first, then moves the final video to export or the temp capture root after AVAssetWriter finishes.
+- `DatabaseManager` is initialized before launch cleanup and schedulers run. If `snapzy.db` cannot open or migrate, `AppDelegate` presents repair/reset/quit recovery UI; reset archives existing DB files into `DatabaseRecovery-<yyyyMMdd-HHmmss>[-N]/` before creating a fresh database.
 - `QuickAccessActionConfigurationStore` owns user-configurable Quick Access action visibility, context-menu order, and card slot assignments. Settings → Quick Access lets users reorder the context menu from the list, then drag actions onto explicit preview slots for the live hover card layout.
 - `RecordingCoordinator` owns the toolbar/overlay UX. `ScreenRecordingManager` owns the media pipeline.
 - `ScrollingCaptureCoordinator` is its own subsystem. Treat `Services/Capture/ScrollingCapture/*` as a unit.

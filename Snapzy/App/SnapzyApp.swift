@@ -102,6 +102,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     AppIdentityManager.shared.refresh()
 
+    guard ensureDatabaseReadyForLaunch() else {
+      return
+    }
+
     // Cleanup orphaned temp capture files from previous sessions
     TempCaptureManager.shared.cleanupOrphanedFiles()
 
@@ -119,6 +123,130 @@ class AppDelegate: NSObject, NSApplicationDelegate {
       andEventID: AEEventID(kAEGetURL)
     )
     coordinator?.applicationWillTerminate()
+  }
+
+  private enum DatabaseLaunchRecoveryAction {
+    case repair
+    case reset
+    case quit
+  }
+
+  private func ensureDatabaseReadyForLaunch() -> Bool {
+    switch DatabaseManager.prepare() {
+    case .success:
+      return true
+    case let .failure(error):
+      return presentDatabaseRecoveryFlow(startingWith: error)
+    }
+  }
+
+  private func presentDatabaseRecoveryFlow(startingWith error: Error) -> Bool {
+    var currentError: Error = error
+    var note: String?
+
+    while true {
+      switch presentDatabaseRecoveryAlert(error: currentError, note: note) {
+      case .repair:
+        do {
+          try DatabaseManager.attemptRepair()
+          return true
+        } catch {
+          currentError = error
+          note = "Repair did not succeed. You can reset the database after backing up the current files, or quit Snapzy."
+        }
+
+      case .reset:
+        guard confirmDatabaseReset(error: currentError) else {
+          note = nil
+          continue
+        }
+
+        do {
+          let archive = try DatabaseManager.resetDatabaseFiles()
+          switch DatabaseManager.retryInitialization() {
+          case .success:
+            if let archiveDirectoryURL = archive.archiveDirectoryURL {
+              DiagnosticLogger.shared.log(
+                .warning,
+                .lifecycle,
+                "Database reset during launch",
+                context: ["archive": archiveDirectoryURL.path]
+              )
+            }
+            return true
+          case let .failure(error):
+            currentError = error
+            note = "Reset moved the old database files aside, but Snapzy still could not create a fresh database."
+          }
+        } catch {
+          currentError = error
+          note = "Reset failed before Snapzy could create a fresh database."
+        }
+
+      case .quit:
+        NSApp.terminate(nil)
+        return false
+      }
+    }
+  }
+
+  private func presentDatabaseRecoveryAlert(
+    error: Error,
+    note: String?
+  ) -> DatabaseLaunchRecoveryAction {
+    NSApp.activate(ignoringOtherApps: true)
+
+    let alert = NSAlert()
+    alert.alertStyle = .critical
+    alert.messageText = "Snapzy could not open its database."
+
+    var informativeText = """
+      Snapzy needs this database for capture history and cloud upload records.
+
+      Database:
+      \(DatabaseManager.defaultDatabaseURL.path)
+
+      Error:
+      \(error.localizedDescription)
+      """
+    if let note {
+      informativeText += "\n\n\(note)"
+    }
+    informativeText += "\n\nTry a repair first. Reset starts with an empty database after moving the current database files into a recovery folder."
+    alert.informativeText = informativeText
+
+    alert.addButton(withTitle: "Try Repair")
+    alert.addButton(withTitle: "Reset Database...")
+    alert.addButton(withTitle: "Quit Snapzy")
+
+    switch alert.runModal() {
+    case .alertFirstButtonReturn:
+      return .repair
+    case .alertSecondButtonReturn:
+      return .reset
+    default:
+      return .quit
+    }
+  }
+
+  private func confirmDatabaseReset(error: Error) -> Bool {
+    let alert = NSAlert()
+    alert.alertStyle = .critical
+    alert.messageText = "Reset Snapzy Database?"
+    alert.informativeText = """
+      Snapzy will move the current database files into a recovery folder, then create a new empty database.
+
+      This resets capture history and cloud upload history inside Snapzy. Capture files on disk and cloud files are not deleted.
+
+      Database:
+      \(DatabaseManager.defaultDatabaseURL.path)
+
+      Current error:
+      \(error.localizedDescription)
+      """
+    alert.addButton(withTitle: "Reset Database")
+    alert.addButton(withTitle: "Cancel")
+    return alert.runModal() == .alertFirstButtonReturn
   }
 
   @objc private func handleGetURLEvent(

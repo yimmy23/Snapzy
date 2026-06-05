@@ -283,6 +283,8 @@ final class TempCaptureManager {
     }
 
     let historyEnabled = defaults.object(forKey: PreferencesKeys.historyEnabled) as? Bool ?? true
+    let historyStore = CaptureHistoryStore.shared
+    let canCheckHistoryRecords = historyStore.isDatabaseAvailable
     var count = 0
     var skipped = 0
     var preservedForRetention = 0
@@ -297,8 +299,13 @@ final class TempCaptureManager {
       }
 
       // Skip files referenced by active history records
-      if CaptureHistoryStore.shared.hasRecord(forFilePath: fileURL.path) {
+      if canCheckHistoryRecords, historyStore.hasRecord(forFilePath: fileURL.path) {
         skipped += 1
+        continue
+      }
+
+      if historyEnabled, !canCheckHistoryRecords {
+        preservedForRetention += 1
         continue
       }
 

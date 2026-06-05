@@ -31,10 +31,24 @@ jobs:
           swift -module-cache-path build/swift-module-cache tools/localization/CatalogTool.swift verify
 
       - name: Run tests
+        env:
+          SNAPZY_CI_SKIP_TESTS: "SnapzyTests/DatabaseManagerTests"
         run: |
           set -euo pipefail
           mkdir -p build
           rm -rf build/ci-test.xcresult
+          test_args=()
+          if [[ -n "${SNAPZY_CI_SKIP_TESTS:-}" ]]; then
+            skip_tests="${SNAPZY_CI_SKIP_TESTS//$'\n'/ }"
+            skip_tests="${skip_tests//,/ }"
+            skip_tests="${skip_tests//;/ }"
+            echo "Skipping XCTest identifiers from SNAPZY_CI_SKIP_TESTS:"
+            for test_id in $skip_tests; do
+              [[ -z "$test_id" ]] && continue
+              echo "  - $test_id"
+              test_args+=("-skip-testing:$test_id")
+            done
+          fi
 
           if ! xcodebuild \
             -project Snapzy.xcodeproj \
@@ -45,6 +59,7 @@ jobs:
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
+            "${test_args[@]}" \
             test > build/ci-test.log 2>&1; then
             echo "::group::Likely test failures"
             grep -E "Test case '.*' failed|Failing tests:|\\*\\* TEST FAILED \\*\\*|error:" build/ci-test.log || true

@@ -71,6 +71,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Features
 -  Implement zoom functionality for Quick Access pin window with scroll and pinch gestures (d678ca9)
 
+### Bug Fixes
+- fix: handle database launch failures with repair/reset recovery instead of crashing silently (#223)
+
 ### Chore
 - chore: Update localized strings for sponsor and donation buttons in Settings (26e37c4)
 - refactor: Refactor HistoryBackdropView for improved layout and styling in HistorySettingsView (8e93613)

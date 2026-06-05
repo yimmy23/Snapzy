@@ -20,11 +20,16 @@ final class CloudUploadHistoryStore: ObservableObject {
 
   @Published private(set) var records: [CloudUploadRecord] = []
 
-  private let dbPool: DatabasePool
+  private var dbPool: DatabasePool?
   private var cancellable: AnyDatabaseCancellable?
 
   private init() {
-    dbPool = DatabaseManager.shared.dbPool
+    do {
+      dbPool = try DatabaseManager.shared().dbPool
+    } catch {
+      dbPool = nil
+      logger.error("Cloud upload history disabled; database unavailable: \(error.localizedDescription)")
+    }
     startObservation()
   }
 
@@ -33,6 +38,9 @@ final class CloudUploadHistoryStore: ObservableObject {
   /// Observe all records ordered by uploadedAt desc.
   /// Updates `records` automatically whenever the database changes.
   private func startObservation() {
+    guard cancellable == nil else { return }
+    guard let dbPool = resolveDatabasePool(for: "start observation") else { return }
+
     let observation = ValueObservation.tracking { db in
       try CloudUploadRecord
         .order(Column("uploadedAt").desc)
@@ -56,6 +64,8 @@ final class CloudUploadHistoryStore: ObservableObject {
 
   /// Add a new upload record
   func add(_ record: CloudUploadRecord) {
+    guard let dbPool = requireDatabase(for: "add upload record") else { return }
+
     do {
       try dbPool.write { db in
         try record.insert(db)
@@ -68,6 +78,8 @@ final class CloudUploadHistoryStore: ObservableObject {
 
   /// Remove a record by ID
   func remove(id: UUID) {
+    guard let dbPool = requireDatabase(for: "remove upload record") else { return }
+
     do {
       try dbPool.write { db in
         _ = try CloudUploadRecord.deleteOne(db, id: id)
@@ -79,6 +91,8 @@ final class CloudUploadHistoryStore: ObservableObject {
 
   /// Remove a record by cloud key (used when overwriting replaces the old key)
   func removeByKey(_ key: String) {
+    guard let dbPool = requireDatabase(for: "remove upload record by key") else { return }
+
     do {
       let count = try dbPool.write { db in
         try CloudUploadRecord
@@ -95,6 +109,8 @@ final class CloudUploadHistoryStore: ObservableObject {
 
   /// Remove all records
   func removeAll() {
+    guard let dbPool = requireDatabase(for: "remove all upload records") else { return }
+
     do {
       try dbPool.write { db in
         _ = try CloudUploadRecord.deleteAll(db)
@@ -107,5 +123,26 @@ final class CloudUploadHistoryStore: ObservableObject {
   /// Most recent N records
   func recentRecords(limit: Int = 5) -> [CloudUploadRecord] {
     Array(records.prefix(limit))
+  }
+
+  private func requireDatabase(for operation: String) -> DatabasePool? {
+    guard let dbPool = resolveDatabasePool(for: operation) else { return nil }
+    startObservation()
+    return dbPool
+  }
+
+  private func resolveDatabasePool(for operation: String) -> DatabasePool? {
+    if let dbPool {
+      return dbPool
+    }
+
+    do {
+      let manager = try DatabaseManager.shared()
+      dbPool = manager.dbPool
+      return manager.dbPool
+    } catch {
+      logger.error("Skipped \(operation); database unavailable: \(error.localizedDescription)")
+      return nil
+    }
   }
 }

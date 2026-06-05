@@ -25,12 +25,23 @@ final class CaptureHistoryStore: ObservableObject {
   @Published private(set) var records: [CaptureHistoryRecord] = []
 
   var userDefaults: UserDefaults = .standard
+  var isDatabaseAvailable: Bool {
+    guard resolveDatabasePool(for: "check database availability") != nil else { return false }
+    startObservation()
+    return true
+  }
 
-  private let dbPool: DatabasePool
+  private var dbPool: DatabasePool?
   private var cancellable: AnyDatabaseCancellable?
 
   private init() {
-    dbPool = DatabaseManager.shared.dbPool
+    do {
+      dbPool = try DatabaseManager.shared().dbPool
+    } catch {
+      dbPool = nil
+      logger.error("Capture history disabled; database unavailable: \(error.localizedDescription)")
+      DiagnosticLogger.shared.logError(.history, error, "Capture history database unavailable")
+    }
     startObservation()
   }
 
@@ -39,6 +50,9 @@ final class CaptureHistoryStore: ObservableObject {
   /// Observe all records ordered by capturedAt desc.
   /// Updates `records` automatically whenever the database changes.
   private func startObservation() {
+    guard cancellable == nil else { return }
+    guard let dbPool = resolveDatabasePool(for: "start observation") else { return }
+
     let observation = ValueObservation.tracking { db in
       try CaptureHistoryRecord
         .order(Column("capturedAt").desc)
@@ -77,6 +91,8 @@ final class CaptureHistoryStore: ObservableObject {
   /// Add a new capture record.
   /// Respects the `historyEnabled` preference; no-op if disabled.
   func add(_ record: CaptureHistoryRecord) {
+    guard let dbPool = requireDatabase(for: "add capture history record") else { return }
+
     guard userDefaults.bool(forKey: PreferencesKeys.historyEnabled) else {
       logger.debug("History disabled, skipping record for \(record.fileName)")
       DiagnosticLogger.shared.log(
@@ -123,6 +139,7 @@ final class CaptureHistoryStore: ObservableObject {
   func remove(ids: [UUID]) {
     let uniqueIds = Array(Set(ids))
     guard !uniqueIds.isEmpty else { return }
+    guard let dbPool = requireDatabase(for: "remove capture history records") else { return }
 
     do {
       var thumbnailPaths: [String] = []
@@ -177,6 +194,8 @@ final class CaptureHistoryStore: ObservableObject {
 
   /// Remove a record by file path (used when file is manually deleted)
   func removeByFilePath(_ filePath: String) {
+    guard let dbPool = requireDatabase(for: "remove capture history record by file path") else { return }
+
     do {
       let thumbnailPaths = try dbPool.read { db in
         try CaptureHistoryRecord
@@ -225,7 +244,10 @@ final class CaptureHistoryStore: ObservableObject {
   }
 
   /// Remove all records and clean up thumbnails
-  func removeAll() {
+  @discardableResult
+  func removeAll() -> Bool {
+    guard let dbPool = requireDatabase(for: "remove all capture history records") else { return false }
+
     do {
       // Collect all thumbnail paths before deletion
       let thumbnailPaths: [String] = try dbPool.read { db in
@@ -259,14 +281,18 @@ final class CaptureHistoryStore: ObservableObject {
         "All capture history records removed",
         context: ["thumbnailCount": "\(thumbnailPaths.count)"]
       )
+      return true
     } catch {
       logger.error("Failed to remove all records: \(error.localizedDescription)")
       DiagnosticLogger.shared.logError(.history, error, "Capture history remove all failed")
+      return false
     }
   }
 
   /// Update the thumbnail path for a record
   func updateThumbnailPath(id: UUID, path: String?) {
+    guard let dbPool = requireDatabase(for: "update capture history thumbnail path") else { return }
+
     do {
       try dbPool.write { db in
         if var record = try CaptureHistoryRecord.fetchOne(db, id: id) {
@@ -287,6 +313,8 @@ final class CaptureHistoryStore: ObservableObject {
 
   /// Update the file path for a record (e.g. after save-to-export moves the file)
   func updateFilePath(id: UUID, newPath: String) {
+    guard let dbPool = requireDatabase(for: "update capture history file path") else { return }
+
     do {
       try dbPool.write { db in
         if var record = try CaptureHistoryRecord.fetchOne(db, id: id) {
@@ -316,6 +344,8 @@ final class CaptureHistoryStore: ObservableObject {
   /// Update matching record paths after a temp file is moved to a new location.
   @discardableResult
   func updateFilePath(from oldPath: String, to newPath: String) -> Int {
+    guard let dbPool = requireDatabase(for: "update capture history file paths") else { return 0 }
+
     do {
       var updatedCount = 0
       try dbPool.write { db in
@@ -363,6 +393,8 @@ final class CaptureHistoryStore: ObservableObject {
   /// Mark matching history rows stale after their backing file was overwritten.
   @discardableResult
   func markFileChanged(at url: URL) -> [UUID] {
+    guard let dbPool = requireDatabase(for: "mark capture history file changed") else { return [] }
+
     let filePath = url.path
     let fileName = url.lastPathComponent
     let fileSize = currentFileSize(at: url)
@@ -420,6 +452,8 @@ final class CaptureHistoryStore: ObservableObject {
 
   /// Check whether an active history record exists for a given file path
   func hasRecord(forFilePath filePath: String) -> Bool {
+    guard let dbPool = requireDatabase(for: "check capture history record existence") else { return false }
+
     do {
       let count = try dbPool.read { db in
         try CaptureHistoryRecord
@@ -443,6 +477,8 @@ final class CaptureHistoryStore: ObservableObject {
   /// Pass 0 to skip age-based cleanup.
   func removeOlderThan(days: Int) {
     guard days > 0 else { return }
+    guard let dbPool = requireDatabase(for: "remove old capture history records") else { return }
+
     let cutoff = Date().addingTimeInterval(-TimeInterval(days * 24 * 60 * 60))
 
     do {
@@ -475,6 +511,7 @@ final class CaptureHistoryStore: ObservableObject {
   /// Pass 0 to skip count-based cleanup.
   func trimToMaxCount(_ maxCount: Int) {
     guard maxCount > 0 else { return }
+    guard let dbPool = requireDatabase(for: "trim capture history records") else { return }
 
     do {
       let total = try dbPool.read { db in
@@ -557,6 +594,8 @@ final class CaptureHistoryStore: ObservableObject {
 
   /// Clear all thumbnail paths without deleting records
   func clearAllThumbnailPaths() {
+    guard let dbPool = requireDatabase(for: "clear capture history thumbnail paths") else { return }
+
     do {
       let allRecords = try dbPool.read { db in
         try CaptureHistoryRecord.fetchAll(db)
@@ -579,6 +618,8 @@ final class CaptureHistoryStore: ObservableObject {
   }
 
   func refreshRecords() {
+    guard let dbPool = requireDatabase(for: "refresh capture history records") else { return }
+
     do {
       records = try dbPool.read { db in
         try CaptureHistoryRecord
@@ -614,6 +655,33 @@ final class CaptureHistoryStore: ObservableObject {
           context: ["fileName": url.lastPathComponent]
         )
       }
+      return nil
+    }
+  }
+
+  private func requireDatabase(for operation: String) -> DatabasePool? {
+    guard let dbPool = resolveDatabasePool(for: operation) else { return nil }
+    startObservation()
+    return dbPool
+  }
+
+  private func resolveDatabasePool(for operation: String) -> DatabasePool? {
+    if let dbPool {
+      return dbPool
+    }
+
+    do {
+      let manager = try DatabaseManager.shared()
+      dbPool = manager.dbPool
+      return manager.dbPool
+    } catch {
+      logger.error("Skipped \(operation); database unavailable: \(error.localizedDescription)")
+      DiagnosticLogger.shared.log(
+        .warning,
+        .history,
+        "Capture history operation skipped; database unavailable",
+        context: ["operation": operation]
+      )
       return nil
     }
   }

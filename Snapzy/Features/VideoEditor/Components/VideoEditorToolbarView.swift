@@ -70,62 +70,53 @@ struct VideoEditorToolbarView: View {
 
   private var leftSection: some View {
     HStack(spacing: WindowSpacingConfiguration.default.toolbarItemSpacing) {
-      // Undo button
-      Button(action: { state.undo() }) {
-        Image(systemName: "arrow.uturn.backward")
-          .font(.system(size: 14))
-          .frame(width: 28, height: 28)
-          .background(Color.white.opacity(0.1))
-          .clipShape(RoundedRectangle(cornerRadius: 6))
+      undoRedoGroup
+
+      ToolbarDivider()
+
+      fileActionsGroup
+    }
+    .padding(.leading, trafficLightsInsetWidth)
+  }
+
+  private var undoRedoGroup: some View {
+    HStack(spacing: 4) {
+      ToolbarButton(icon: "arrow.uturn.backward", isSelected: false) {
+        state.undo()
       }
-      .buttonStyle(.plain)
       .disabled(!state.canUndo)
       .opacity(state.canUndo ? 1 : 0.4)
       .keyboardShortcut("z", modifiers: [.command])
       .help(L10n.VideoEditor.undoShortcutHint)
 
-      // Redo button
-      Button(action: { state.redo() }) {
-        Image(systemName: "arrow.uturn.forward")
-          .font(.system(size: 14))
-          .frame(width: 28, height: 28)
-          .background(Color.white.opacity(0.1))
-          .clipShape(RoundedRectangle(cornerRadius: 6))
+      ToolbarButton(icon: "arrow.uturn.forward", isSelected: false) {
+        state.redo()
       }
-      .buttonStyle(.plain)
       .disabled(!state.canRedo)
       .opacity(state.canRedo ? 1 : 0.4)
       .keyboardShortcut("z", modifiers: [.command, .shift])
       .help(L10n.VideoEditor.redoShortcutHint)
+    }
+  }
 
-      Divider()
-        .frame(height: 20)
-
-      // Open in Folder button
-      Button(action: { state.openInFinder() }) {
-        Image(systemName: "folder")
-          .font(.system(size: 14))
-          .frame(width: 28, height: 28)
-          .background(Color.white.opacity(0.1))
-          .clipShape(RoundedRectangle(cornerRadius: 6))
+  private var fileActionsGroup: some View {
+    HStack(spacing: 4) {
+      ToolbarButton(icon: "folder", isSelected: false) {
+        state.openInFinder()
       }
-      .buttonStyle(.plain)
       .help(L10n.Common.openInFinder)
 
-      // Video Info button
-      Button(action: { state.toggleVideoInfoSidebar() }) {
-        Image(systemName: state.isVideoInfoSidebarVisible ? "info.circle.fill" : "info.circle")
-          .font(.system(size: 14))
-          .foregroundColor(state.isVideoInfoSidebarVisible ? ZoomColors.primary : .primary)
-          .frame(width: 28, height: 28)
-          .background(state.isVideoInfoSidebarVisible ? ZoomColors.primary.opacity(0.15) : Color.white.opacity(0.1))
-          .clipShape(RoundedRectangle(cornerRadius: 6))
+      ToolbarButton(
+        icon: "info.circle",
+        selectedIcon: "info.circle.fill",
+        isSelected: state.isVideoInfoSidebarVisible,
+        highlightColor: ZoomColors.primary
+      ) {
+        state.toggleVideoInfoSidebar()
       }
-      .buttonStyle(.plain)
       .keyboardShortcut("i", modifiers: [])
       .help(state.isVideoInfoSidebarVisible ? L10n.VideoEditor.hideVideoInfoHint : L10n.VideoEditor.showVideoInfoHint)
     }
-    .padding(.leading, trafficLightsInsetWidth)
   }
 
   // MARK: - Center Section
@@ -139,8 +130,8 @@ struct VideoEditorToolbarView: View {
           .frame(width: 200)
           .padding(.horizontal, 8)
           .padding(.vertical, 4)
-          .background(Color.white.opacity(0.1))
-          .cornerRadius(6)
+          .background(Color.primary.opacity(0.08))
+          .clipShape(RoundedRectangle(cornerRadius: 6))
           .onAppear {
             editingFilename = filenameWithoutExtension
           }
@@ -155,12 +146,12 @@ struct VideoEditorToolbarView: View {
           .truncationMode(.middle)
           .frame(maxWidth: 320)
 
-        Button(action: startRename) {
-          Image(systemName: "pencil")
-            .font(.system(size: 11))
-            .foregroundColor(.secondary)
+        ToolbarButton(
+          icon: "pencil",
+          isSelected: false
+        ) {
+          startRename()
         }
-        .buttonStyle(.plain)
         .help(L10n.Common.renameFile)
       }
 
@@ -181,33 +172,17 @@ struct VideoEditorToolbarView: View {
     HStack(spacing: WindowSpacingConfiguration.default.toolbarItemSpacing) {
       // Right sidebar toggle (video only — zoom/background don't apply to GIF)
       if !state.isGIF {
-        Button(action: { state.toggleRightSidebar() }) {
-          Image(systemName: "sidebar.right")
-            .font(.system(size: 14))
-            .foregroundColor(state.isRightSidebarVisible ? ZoomColors.primary : .primary)
-            .frame(width: 28, height: 28)
-            .background(state.isRightSidebarVisible ? ZoomColors.primary.opacity(0.15) : Color.white.opacity(0.1))
-            .clipShape(RoundedRectangle(cornerRadius: 6))
+        ToolbarButton(
+          icon: "sidebar.right",
+          isSelected: state.isRightSidebarVisible,
+          highlightColor: ZoomColors.primary
+        ) {
+          state.toggleRightSidebar()
         }
-        .buttonStyle(.plain)
         .keyboardShortcut(".", modifiers: [.command])
         .help(state.isRightSidebarVisible ? L10n.VideoEditor.hideSidebarHint : L10n.VideoEditor.showSidebarHint)
       }
 
-      // Unsaved changes indicator (video only)
-      if !state.isGIF && state.hasUnsavedChanges {
-        Divider()
-          .frame(height: 20)
-
-        HStack(spacing: 4) {
-          Image(systemName: "circle.fill")
-            .font(.system(size: 6))
-            .foregroundColor(.orange)
-          Text(L10n.Common.unsaved)
-            .font(.system(size: 11))
-            .foregroundColor(.secondary)
-        }
-      }
     }
   }
 

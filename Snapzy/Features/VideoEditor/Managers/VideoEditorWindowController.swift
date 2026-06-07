@@ -6,6 +6,7 @@
 //
 
 import AppKit
+import Combine
 import Darwin
 import SwiftUI
 import UniformTypeIdentifiers
@@ -21,6 +22,7 @@ final class VideoEditorWindowController: NSWindowController, NSWindowDelegate {
   private var originalFileAccess: SandboxFileAccessManager.ScopedAccess?
   private var sourceURL: URL?
   private var state: VideoEditorState?
+  private var documentEditedCancellable: AnyCancellable?
   private var isEmptyState: Bool = false
 
   /// Callback when video is loaded in empty state - (workingURL, originalURL)
@@ -117,14 +119,30 @@ final class VideoEditorWindowController: NSWindowController, NSWindowDelegate {
       onSave: { [weak self] in self?.showSaveConfirmation() },
       onCancel: { [weak self] in self?.handleCancel() }
     )
+    bindDocumentEditedState(to: state)
     window?.contentView = NSHostingView(rootView: mainView)
   }
 
   private func setupEmptyContent() {
+    bindDocumentEditedState(to: nil)
     let emptyView = VideoEditorEmptyStateView { [weak self] url, originalURL in
       self?.onVideoLoaded?(url, originalURL)
     }
     window?.contentView = NSHostingView(rootView: emptyView)
+  }
+
+  private func bindDocumentEditedState(to state: VideoEditorState?) {
+    documentEditedCancellable = nil
+    window?.isDocumentEdited = state?.hasUnsavedChanges ?? false
+
+    guard let state else { return }
+
+    documentEditedCancellable = state.$hasUnsavedChanges
+      .removeDuplicates()
+      .receive(on: RunLoop.main)
+      .sink { [weak self] hasUnsavedChanges in
+        self?.window?.isDocumentEdited = hasUnsavedChanges
+      }
   }
 
   func showWindow() {

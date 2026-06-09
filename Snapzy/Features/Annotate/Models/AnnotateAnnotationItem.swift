@@ -13,6 +13,12 @@ import SwiftUI
 enum BlurType: String, CaseIterable, Identifiable, Equatable {
   case pixelated
   case gaussian
+  case hexagonal
+  case crystallized
+  case pointillism
+  case halftone
+  case tape
+  case washi
 
   var id: String { rawValue }
 
@@ -20,6 +26,12 @@ enum BlurType: String, CaseIterable, Identifiable, Equatable {
     switch self {
     case .pixelated: return L10n.AnnotateUI.pixelated
     case .gaussian: return L10n.AnnotateUI.gaussian
+    case .hexagonal: return L10n.AnnotateUI.hexagonal
+    case .crystallized: return L10n.AnnotateUI.crystallized
+    case .pointillism: return L10n.AnnotateUI.pointillism
+    case .halftone: return L10n.AnnotateUI.halftone
+    case .tape: return L10n.AnnotateUI.tape
+    case .washi: return L10n.AnnotateUI.washi
     }
   }
 
@@ -27,6 +39,12 @@ enum BlurType: String, CaseIterable, Identifiable, Equatable {
     switch self {
     case .pixelated: return "square.grid.3x3"
     case .gaussian: return "drop.halffull"
+    case .hexagonal: return "hexagon"
+    case .crystallized: return "sparkles"
+    case .pointillism: return "circle.grid.3x3.fill"
+    case .halftone: return "checkerboard.rectangle"
+    case .tape: return "bandage"
+    case .washi: return "paintbrush"
     }
   }
 }
@@ -611,6 +629,30 @@ struct AnnotationProperties: Equatable {
 
   static func gaussianBlurRadius(for controlValue: CGFloat) -> CGFloat {
     8 + clampedControlValue(controlValue) * 4
+  }
+
+  static func hexagonalScale(for controlValue: CGFloat) -> CGFloat {
+    8 + clampedControlValue(controlValue) * 3
+  }
+
+  static func crystallizeRadius(for controlValue: CGFloat) -> CGFloat {
+    10 + clampedControlValue(controlValue) * 4
+  }
+
+  static func pointillismRadius(for controlValue: CGFloat) -> CGFloat {
+    8 + clampedControlValue(controlValue) * 3
+  }
+
+  static func halftoneWidth(for controlValue: CGFloat) -> CGFloat {
+    6 + clampedControlValue(controlValue) * 2
+  }
+
+  static func tapePatternSpacing(for controlValue: CGFloat) -> CGFloat {
+    8 + clampedControlValue(controlValue) * 2
+  }
+
+  static func washiPatternSpacing(for controlValue: CGFloat) -> CGFloat {
+    8 + clampedControlValue(controlValue) * 2
   }
 
   static func clampedOpacity(_ value: CGFloat) -> CGFloat {

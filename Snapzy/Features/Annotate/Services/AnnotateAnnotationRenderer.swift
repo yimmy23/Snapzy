@@ -497,7 +497,7 @@ struct AnnotationRenderer {
           context.interpolationQuality = .none
           context.draw(cachedImage, in: renderBounds)
           context.restoreGState()
-        case .gaussian:
+        case .gaussian, .hexagonal, .crystallized, .pointillism, .halftone, .tape, .washi:
           context.interpolationQuality = .high
           context.draw(cachedImage, in: renderBounds)
         }
@@ -522,6 +522,46 @@ struct AnnotationRenderer {
         sourceImage: sourceImage,
         region: renderBounds,
         radius: Double(effectValue)
+      )
+    case .hexagonal:
+      BlurEffectRenderer.drawHexagonalRegion(
+        in: context,
+        sourceImage: sourceImage,
+        region: renderBounds,
+        scale: Double(effectValue)
+      )
+    case .crystallized:
+      BlurEffectRenderer.drawCrystallizedRegion(
+        in: context,
+        sourceImage: sourceImage,
+        region: renderBounds,
+        radius: Double(effectValue)
+      )
+    case .pointillism:
+      BlurEffectRenderer.drawPointillismRegion(
+        in: context,
+        sourceImage: sourceImage,
+        region: renderBounds,
+        radius: Double(effectValue)
+      )
+    case .halftone:
+      BlurEffectRenderer.drawHalftoneRegion(
+        in: context,
+        sourceImage: sourceImage,
+        region: renderBounds,
+        width: Double(effectValue)
+      )
+    case .tape:
+      BlurEffectRenderer.drawTapeRegion(
+        in: context,
+        region: renderBounds,
+        patternSpacing: effectValue
+      )
+    case .washi:
+      BlurEffectRenderer.drawWashiRegion(
+        in: context,
+        region: renderBounds,
+        patternSpacing: effectValue
       )
     }
   }
@@ -583,6 +623,46 @@ struct AnnotationRenderer {
           region: rect,
           radius: Double(effectValue)
         )
+      case .hexagonal:
+        BlurEffectRenderer.drawHexagonalRegion(
+          in: context,
+          sourceImage: sourceImage,
+          region: rect,
+          scale: Double(effectValue)
+        )
+      case .crystallized:
+        BlurEffectRenderer.drawCrystallizedRegion(
+          in: context,
+          sourceImage: sourceImage,
+          region: rect,
+          radius: Double(effectValue)
+        )
+      case .pointillism:
+        BlurEffectRenderer.drawPointillismRegion(
+          in: context,
+          sourceImage: sourceImage,
+          region: rect,
+          radius: Double(effectValue)
+        )
+      case .halftone:
+        BlurEffectRenderer.drawHalftoneRegion(
+          in: context,
+          sourceImage: sourceImage,
+          region: rect,
+          width: Double(effectValue)
+        )
+      case .tape:
+        BlurEffectRenderer.drawTapeRegion(
+          in: context,
+          region: rect,
+          patternSpacing: effectValue
+        )
+      case .washi:
+        BlurEffectRenderer.drawWashiRegion(
+          in: context,
+          region: rect,
+          patternSpacing: effectValue
+        )
       }
     }
 
@@ -600,6 +680,18 @@ struct AnnotationRenderer {
       return AnnotationProperties.pixelatedBlurSize(for: controlValue)
     case .gaussian:
       return AnnotationProperties.gaussianBlurRadius(for: controlValue)
+    case .hexagonal:
+      return AnnotationProperties.hexagonalScale(for: controlValue)
+    case .crystallized:
+      return AnnotationProperties.crystallizeRadius(for: controlValue)
+    case .pointillism:
+      return AnnotationProperties.pointillismRadius(for: controlValue)
+    case .halftone:
+      return AnnotationProperties.halftoneWidth(for: controlValue)
+    case .tape:
+      return AnnotationProperties.tapePatternSpacing(for: controlValue)
+    case .washi:
+      return AnnotationProperties.washiPatternSpacing(for: controlValue)
     }
   }
 }

@@ -110,9 +110,13 @@ private enum QuickPropertiesDensity {
   }
 
   var blurTypeControlWidth: CGFloat {
+    let buttonCount = CGFloat(BlurType.allCases.count)
+    let spacing: CGFloat = 5
     switch self {
-    case .regular: return 142
-    case .compact: return 124
+    case .regular:
+      return buttonCount * 28 + (buttonCount - 1) * spacing + 48
+    case .compact:
+      return buttonCount * 24 + (buttonCount - 1) * spacing + 40
     }
   }
 

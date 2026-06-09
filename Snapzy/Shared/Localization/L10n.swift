@@ -4553,6 +4553,66 @@ enum L10n {
       defaultValue: "Smooth Gaussian blur similar to CSS filter",
       comment: "Description shown for the gaussian blur style"
     )
+    static let hexagonal = string(
+      "annotate.hexagonal",
+      defaultValue: "Hexagonal",
+      comment: "Label for hexagonal blur style"
+    )
+    static let crystallized = string(
+      "annotate.crystallized",
+      defaultValue: "Starry",
+      comment: "Label for starry tape cover style"
+    )
+    static let pointillism = string(
+      "annotate.pointillism",
+      defaultValue: "Grid",
+      comment: "Label for grid tape cover style"
+    )
+    static let halftone = string(
+      "annotate.halftone",
+      defaultValue: "Gingham",
+      comment: "Label for gingham tape cover style"
+    )
+    static let tape = string(
+      "annotate.tape",
+      defaultValue: "Tape",
+      comment: "Label for tape cover style"
+    )
+    static let washi = string(
+      "annotate.washi",
+      defaultValue: "Washi",
+      comment: "Label for washi cover style"
+    )
+    static let hexagonalBlurDescription = string(
+      "annotate.hexagonal-blur-description",
+      defaultValue: "Artistic hexagonal pixelation effect",
+      comment: "Description shown for the hexagonal blur style"
+    )
+    static let crystallizedBlurDescription = string(
+      "annotate.crystallized-blur-description",
+      defaultValue: "Lavender paper tape with a starry pattern",
+      comment: "Description shown for the starry tape style"
+    )
+    static let pointillismBlurDescription = string(
+      "annotate.pointillism-blur-description",
+      defaultValue: "Peach paper tape with a grid line pattern",
+      comment: "Description shown for the grid tape style"
+    )
+    static let halftoneBlurDescription = string(
+      "annotate.halftone-blur-description",
+      defaultValue: "Cream paper tape with a gingham check pattern",
+      comment: "Description shown for the gingham tape style"
+    )
+    static let tapeBlurDescription = string(
+      "annotate.tape-blur-description",
+      defaultValue: "Off-white paper tape with diagonal patterns",
+      comment: "Description shown for the tape cover style"
+    )
+    static let washiBlurDescription = string(
+      "annotate.washi-blur-description",
+      defaultValue: "Pastel teal paper tape with grid dot patterns",
+      comment: "Description shown for the washi cover style"
+    )
     static let blurredBackground = string(
       "annotate.blurred-background",
       defaultValue: "Blurred",

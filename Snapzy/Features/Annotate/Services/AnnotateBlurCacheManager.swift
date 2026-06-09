@@ -283,6 +283,66 @@ final class BlurCacheManager {
         radius: Double(effectValue),
         quality: quality
       )
+    case .hexagonal:
+      BlurEffectRenderer.drawHexagonalRegion(
+        in: context,
+        sourceCGImage: sourceCGImage,
+        sourceSize: sourceSize,
+        sourceRegion: bounds,
+        destRegion: localRegion,
+        scale: Double(effectValue),
+        quality: quality
+      )
+    case .crystallized:
+      BlurEffectRenderer.drawCrystallizedRegion(
+        in: context,
+        sourceCGImage: sourceCGImage,
+        sourceSize: sourceSize,
+        sourceRegion: bounds,
+        destRegion: localRegion,
+        radius: Double(effectValue),
+        quality: quality
+      )
+    case .pointillism:
+      BlurEffectRenderer.drawPointillismRegion(
+        in: context,
+        sourceCGImage: sourceCGImage,
+        sourceSize: sourceSize,
+        sourceRegion: bounds,
+        destRegion: localRegion,
+        radius: Double(effectValue),
+        quality: quality
+      )
+    case .halftone:
+      BlurEffectRenderer.drawHalftoneRegion(
+        in: context,
+        sourceCGImage: sourceCGImage,
+        sourceSize: sourceSize,
+        sourceRegion: bounds,
+        destRegion: localRegion,
+        width: Double(effectValue),
+        quality: quality
+      )
+    case .tape:
+      BlurEffectRenderer.drawTapeRegion(
+        in: context,
+        sourceCGImage: sourceCGImage,
+        sourceSize: sourceSize,
+        sourceRegion: bounds,
+        destRegion: localRegion,
+        patternSpacing: Double(effectValue),
+        quality: quality
+      )
+    case .washi:
+      BlurEffectRenderer.drawWashiRegion(
+        in: context,
+        sourceCGImage: sourceCGImage,
+        sourceSize: sourceSize,
+        sourceRegion: bounds,
+        destRegion: localRegion,
+        patternSpacing: Double(effectValue),
+        quality: quality
+      )
     }
 
     return context.makeImage()

@@ -275,11 +275,18 @@ struct SidebarSlidersSection: View {
 struct BlurTypeSection: View {
   @ObservedObject var state: AnnotateState
 
+  private let columns = [
+    GridItem(.flexible(), spacing: Spacing.sm),
+    GridItem(.flexible(), spacing: Spacing.sm),
+    GridItem(.flexible(), spacing: Spacing.sm),
+    GridItem(.flexible(), spacing: Spacing.sm)
+  ]
+
   var body: some View {
     VStack(alignment: .leading, spacing: Spacing.sm) {
       SidebarSectionHeader(title: L10n.AnnotateUI.blurType)
 
-      HStack(spacing: Spacing.sm) {
+      LazyVGrid(columns: columns, spacing: Spacing.sm) {
         ForEach(BlurType.allCases) { blurType in
           BlurTypeButton(
             blurType: blurType,
@@ -290,11 +297,19 @@ struct BlurTypeSection: View {
         }
       }
 
-      Text(
-        state.blurType == .pixelated
-          ? L10n.AnnotateUI.pixelatedBlurDescription
-          : L10n.AnnotateUI.gaussianBlurDescription
-      )
+      let description: String = {
+        switch state.blurType {
+        case .pixelated: return L10n.AnnotateUI.pixelatedBlurDescription
+        case .gaussian: return L10n.AnnotateUI.gaussianBlurDescription
+        case .hexagonal: return L10n.AnnotateUI.hexagonalBlurDescription
+        case .crystallized: return L10n.AnnotateUI.crystallizedBlurDescription
+        case .pointillism: return L10n.AnnotateUI.pointillismBlurDescription
+        case .halftone: return L10n.AnnotateUI.halftoneBlurDescription
+        case .tape: return L10n.AnnotateUI.tapeBlurDescription
+        case .washi: return L10n.AnnotateUI.washiBlurDescription
+        }
+      }()
+      Text(description)
         .font(Typography.labelSmall)
         .foregroundColor(SidebarColors.labelSecondary)
         .padding(.top, 2)

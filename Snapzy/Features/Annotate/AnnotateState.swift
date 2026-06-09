@@ -3899,6 +3899,18 @@ final class AnnotateState: ObservableObject {
         value = AnnotationProperties.pixelatedBlurSize(for: controlValue)
       case .gaussian:
         value = AnnotationProperties.gaussianBlurRadius(for: controlValue)
+      case .hexagonal:
+        value = AnnotationProperties.hexagonalScale(for: controlValue)
+      case .crystallized:
+        value = AnnotationProperties.crystallizeRadius(for: controlValue)
+      case .pointillism:
+        value = AnnotationProperties.pointillismRadius(for: controlValue)
+      case .halftone:
+        value = AnnotationProperties.halftoneWidth(for: controlValue)
+      case .tape:
+        value = AnnotationProperties.tapePatternSpacing(for: controlValue)
+      case .washi:
+        value = AnnotationProperties.washiPatternSpacing(for: controlValue)
       }
       return "\(Int(value.rounded()))"
     default:

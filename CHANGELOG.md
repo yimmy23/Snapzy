@@ -70,6 +70,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 
 
+
+## [1.22.0] - 2026-06-11
+
+### Features
+-  Add two-finger swipe-to-dismiss functionality for Quick Access cards (#240) (591b0e4)
+
+### Bug Fixes
+-  Update app icon assets and add padded app icon generation (#241) (22baf56)
+
+### Chore
+- chore: update appcast, cask, and readme for v1.21.0 (417da33)
+
+### Contributors
+- @duongductrong
+- @github-actions[bot]
+
 ## [1.21.0] - 2026-06-09
 
 ### Features

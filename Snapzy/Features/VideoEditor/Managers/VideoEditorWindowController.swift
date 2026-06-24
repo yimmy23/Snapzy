@@ -634,7 +634,7 @@ final class VideoEditorWindowController: NSWindowController, NSWindowDelegate {
       } catch {
         DiagnosticLogger.shared.logError(.export, error, "Video replace original failed")
         state.isExporting = false
-        if isPermissionDeniedError(error) {
+        if error.isPermissionDenied {
           showReplaceOriginalPermissionFallback(error)
         } else {
           showExportError(error)
@@ -734,21 +734,6 @@ final class VideoEditorWindowController: NSWindowController, NSWindowDelegate {
         self.performSaveAsCopy()
       }
     }
-  }
-
-  private func isPermissionDeniedError(_ error: Error) -> Bool {
-    let nsError = error as NSError
-
-    if nsError.domain == NSCocoaErrorDomain {
-      return nsError.code == NSFileReadNoPermissionError
-        || nsError.code == NSFileWriteNoPermissionError
-    }
-
-    if nsError.domain == NSPOSIXErrorDomain {
-      return nsError.code == Int(EACCES) || nsError.code == Int(EPERM)
-    }
-
-    return false
   }
 
   private func forceClose() {

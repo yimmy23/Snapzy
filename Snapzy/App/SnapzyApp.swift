@@ -137,10 +137,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
   private enum SandboxOffMigrationRecoveryAction {
     case retry
+    case startFresh
     case quit
   }
 
   private func ensureSandboxOffDataMigrationReadyForLaunch() -> Bool {
+    var note: String?
+
     while true {
       do {
         let result = try SandboxOffDataMigrationService.shared.runIfNeeded()
@@ -152,6 +155,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             context: [
               "appSupportCopied": "\(result.copiedApplicationSupportItems)",
               "appSupportSkipped": "\(result.skippedApplicationSupportItems)",
+              "appSupportErrorSkipped": "\(result.errorSkippedApplicationSupportItems)",
               "preferencesImported": "\(result.importedPreferenceKeys)",
               "preferencesSkipped": "\(result.skippedPreferenceKeys)",
               "logsCopied": "\(result.copiedLogItems)",
@@ -160,9 +164,29 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         return true
       } catch {
-        switch presentSandboxOffMigrationRecoveryAlert(error: error) {
+        switch presentSandboxOffMigrationRecoveryAlert(error: error, note: note) {
         case .retry:
+          note = "Previous attempt also failed. If this keeps happening, Start Fresh will let you use Snapzy without old data."
           continue
+
+        case .startFresh:
+          guard confirmMigrationSkip(error: error) else {
+            note = nil
+            continue
+          }
+          do {
+            try SandboxOffDataMigrationService.shared.skipMigration()
+            DiagnosticLogger.shared.log(
+              .warning,
+              .lifecycle,
+              "Sandbox-off data migration skipped by user (Start Fresh)"
+            )
+            return true
+          } catch {
+            note = "Could not mark migration as skipped: \(error.localizedDescription)"
+            continue
+          }
+
         case .quit:
           NSApp.terminate(nil)
           return false
@@ -171,13 +195,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
   }
 
-  private func presentSandboxOffMigrationRecoveryAlert(error: Error) -> SandboxOffMigrationRecoveryAction {
+  private func presentSandboxOffMigrationRecoveryAlert(
+    error: Error,
+    note: String? = nil
+  ) -> SandboxOffMigrationRecoveryAction {
     NSApp.activate(ignoringOtherApps: true)
 
     let alert = NSAlert()
     alert.alertStyle = .critical
     alert.messageText = "Snapzy could not migrate your existing data."
-    alert.informativeText = """
+
+    var informativeText = """
       Snapzy needs to move data from the old sandboxed storage before opening the unsandboxed version.
 
       No new database was opened yet, so your existing data has not been replaced.
@@ -185,15 +213,42 @@ class AppDelegate: NSObject, NSApplicationDelegate {
       Error:
       \(error.localizedDescription)
       """
+    if let note {
+      informativeText += "\n\n\(note)"
+    }
+    informativeText += "\n\nTry again if the error is temporary. Start Fresh launches Snapzy with default settings — your old data stays in the sandbox container and is not deleted."
+    alert.informativeText = informativeText
+
     alert.addButton(withTitle: "Try Again")
+    alert.addButton(withTitle: "Start Fresh…")
     alert.addButton(withTitle: "Quit Snapzy")
 
     switch alert.runModal() {
     case .alertFirstButtonReturn:
       return .retry
+    case .alertSecondButtonReturn:
+      return .startFresh
     default:
       return .quit
     }
+  }
+
+  private func confirmMigrationSkip(error: Error) -> Bool {
+    let alert = NSAlert()
+    alert.alertStyle = .critical
+    alert.messageText = "Start Fresh Without Old Data?"
+    alert.informativeText = """
+      Snapzy will launch with default settings and an empty capture history.
+
+      Your old data remains in the sandbox container and is not deleted. You can access it manually at:
+      ~/Library/Containers/\(Bundle.main.bundleIdentifier ?? "com.duongductrong.Snapzy")
+
+      Current error:
+      \(error.localizedDescription)
+      """
+    alert.addButton(withTitle: "Start Fresh")
+    alert.addButton(withTitle: "Cancel")
+    return alert.runModal() == .alertFirstButtonReturn
   }
 
   private func ensureDatabaseReadyForLaunch() -> Bool {

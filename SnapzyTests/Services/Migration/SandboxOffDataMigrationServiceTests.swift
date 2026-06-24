@@ -72,6 +72,7 @@ final class SandboxOffDataMigrationServiceTests: XCTestCase {
 
     XCTAssertTrue(firstResult.didRun)
     XCTAssertEqual(firstResult.copiedApplicationSupportItems, 2)
+    XCTAssertEqual(firstResult.errorSkippedApplicationSupportItems, 0)
     XCTAssertEqual(defaults.string(forKey: PreferencesKeys.screenshotFormat), "webp")
     XCTAssertFalse(defaults.bool(forKey: PreferencesKeys.historyEnabled))
     XCTAssertTrue(defaults.bool(forKey: PreferencesKeys.sandboxOffMigrationCompleted))
@@ -180,6 +181,123 @@ final class SandboxOffDataMigrationServiceTests: XCTestCase {
 
     XCTAssertThrowsError(try makeService().runIfNeeded())
     XCTAssertFalse(defaults.bool(forKey: PreferencesKeys.sandboxOffMigrationCompleted))
+  }
+
+  func testSkipMigration_marksCompletedWithoutCopyingData() throws {
+    // Setup: create source container with data
+    let sourceAppSupport = sourceDataDirectory()
+      .appendingPathComponent("Library/Application Support/Snapzy", isDirectory: true)
+    try FileManager.default.createDirectory(at: sourceAppSupport, withIntermediateDirectories: true)
+    try Data("database".utf8).write(to: sourceAppSupport.appendingPathComponent("snapzy.db"))
+
+    let service = makeService()
+
+    // Act
+    try service.skipMigration()
+
+    // Assert: migration marked complete
+    XCTAssertTrue(defaults.bool(forKey: PreferencesKeys.sandboxOffMigrationCompleted))
+    XCTAssertTrue(
+      FileManager.default.fileExists(
+        atPath: destinationAppSupport()
+          .appendingPathComponent(".sandbox-off-migration-completed").path
+      )
+    )
+
+    // Assert: NO data copied
+    XCTAssertFalse(
+      FileManager.default.fileExists(
+        atPath: destinationAppSupport().appendingPathComponent("snapzy.db").path
+      )
+    )
+
+    // Assert: runIfNeeded now skips
+    let result = try service.runIfNeeded()
+    XCTAssertFalse(result.didRun)
+  }
+
+  func testSkipMigration_preservesSourceContainerData() throws {
+    let sourceAppSupport = sourceDataDirectory()
+      .appendingPathComponent("Library/Application Support/Snapzy", isDirectory: true)
+    try FileManager.default.createDirectory(at: sourceAppSupport, withIntermediateDirectories: true)
+    try Data("precious data".utf8).write(to: sourceAppSupport.appendingPathComponent("snapzy.db"))
+
+    try makeService().skipMigration()
+
+    // Old data still exists
+    XCTAssertTrue(
+      FileManager.default.fileExists(
+        atPath: sourceAppSupport.appendingPathComponent("snapzy.db").path
+      )
+    )
+  }
+
+  func testRunIfNeeded_skipsUnreadableFilesAndContinues() throws {
+    let sourceAppSupport = sourceDataDirectory()
+      .appendingPathComponent("Library/Application Support/Snapzy", isDirectory: true)
+    try FileManager.default.createDirectory(at: sourceAppSupport, withIntermediateDirectories: true)
+
+    // Create two files: one readable, one not
+    let readableFile = sourceAppSupport.appendingPathComponent("readable.txt")
+    let unreadableFile = sourceAppSupport.appendingPathComponent("unreadable.txt")
+    try Data("readable".utf8).write(to: readableFile)
+    try Data("secret".utf8).write(to: unreadableFile)
+
+    // Make one file unreadable
+    try FileManager.default.setAttributes(
+      [.posixPermissions: 0o000], ofItemAtPath: unreadableFile.path
+    )
+
+    // Act
+    let result = try makeService().runIfNeeded()
+
+    // Assert: migration ran, readable file copied, unreadable skipped
+    XCTAssertTrue(result.didRun)
+    XCTAssertEqual(result.copiedApplicationSupportItems, 1)
+    XCTAssertEqual(result.errorSkippedApplicationSupportItems, 1)
+    XCTAssertTrue(
+      FileManager.default.fileExists(
+        atPath: destinationAppSupport().appendingPathComponent("readable.txt").path
+      )
+    )
+    XCTAssertFalse(
+      FileManager.default.fileExists(
+        atPath: destinationAppSupport().appendingPathComponent("unreadable.txt").path
+      )
+    )
+
+    // Cleanup: restore permissions so tearDown can delete
+    try? FileManager.default.setAttributes(
+      [.posixPermissions: 0o644], ofItemAtPath: unreadableFile.path
+    )
+  }
+
+  func testRunIfNeeded_skipsUnreadableDirectoryAndContinues() throws {
+    let sourceAppSupport = sourceDataDirectory()
+      .appendingPathComponent("Library/Application Support/Snapzy", isDirectory: true)
+    let readableSubdir = sourceAppSupport.appendingPathComponent("Captures", isDirectory: true)
+    let unreadableSubdir = sourceAppSupport.appendingPathComponent("Locked", isDirectory: true)
+
+    try FileManager.default.createDirectory(at: readableSubdir, withIntermediateDirectories: true)
+    try FileManager.default.createDirectory(at: unreadableSubdir, withIntermediateDirectories: true)
+    try Data("capture".utf8).write(to: readableSubdir.appendingPathComponent("img.png"))
+    try Data("locked".utf8).write(to: unreadableSubdir.appendingPathComponent("secret.dat"))
+
+    // Make subdir unreadable (contentsOfDirectory will throw)
+    try FileManager.default.setAttributes(
+      [.posixPermissions: 0o000], ofItemAtPath: unreadableSubdir.path
+    )
+
+    let result = try makeService().runIfNeeded()
+
+    XCTAssertTrue(result.didRun)
+    XCTAssertGreaterThanOrEqual(result.copiedApplicationSupportItems, 1)
+    XCTAssertGreaterThanOrEqual(result.errorSkippedApplicationSupportItems, 1)
+
+    // Cleanup
+    try? FileManager.default.setAttributes(
+      [.posixPermissions: 0o755], ofItemAtPath: unreadableSubdir.path
+    )
   }
 
   private func makeService(isRunningSandboxed: Bool = false) -> SandboxOffDataMigrationService {

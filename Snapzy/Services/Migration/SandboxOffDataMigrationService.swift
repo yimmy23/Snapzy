@@ -17,6 +17,7 @@ struct SandboxOffDataMigrationResult: Equatable {
   let didRun: Bool
   let copiedApplicationSupportItems: Int
   let skippedApplicationSupportItems: Int
+  let errorSkippedApplicationSupportItems: Int
   let importedPreferenceKeys: Int
   let skippedPreferenceKeys: Int
   let copiedLogItems: Int
@@ -25,6 +26,7 @@ struct SandboxOffDataMigrationResult: Equatable {
     didRun: false,
     copiedApplicationSupportItems: 0,
     skippedApplicationSupportItems: 0,
+    errorSkippedApplicationSupportItems: 0,
     importedPreferenceKeys: 0,
     skippedPreferenceKeys: 0,
     copiedLogItems: 0
@@ -121,6 +123,7 @@ final class SandboxOffDataMigrationService {
         didRun: true,
         copiedApplicationSupportItems: 0,
         skippedApplicationSupportItems: 0,
+        errorSkippedApplicationSupportItems: 0,
         importedPreferenceKeys: 0,
         skippedPreferenceKeys: 0,
         copiedLogItems: 0
@@ -175,19 +178,45 @@ final class SandboxOffDataMigrationService {
       didRun: true,
       copiedApplicationSupportItems: applicationSupportSummary.copiedItems,
       skippedApplicationSupportItems: applicationSupportSummary.skippedItems,
+      errorSkippedApplicationSupportItems: applicationSupportSummary.errorSkippedItems,
       importedPreferenceKeys: preferencesSummary.importedKeys,
       skippedPreferenceKeys: preferencesSummary.skippedKeys,
       copiedLogItems: logSummary.copiedItems
     )
     sandboxOffMigrationLogger.info(
-      "Sandbox data migration completed: appSupportCopied=\(result.copiedApplicationSupportItems), appSupportSkipped=\(result.skippedApplicationSupportItems), prefsImported=\(result.importedPreferenceKeys), logsCopied=\(result.copiedLogItems)"
+      "Sandbox data migration completed: appSupportCopied=\(result.copiedApplicationSupportItems), appSupportSkipped=\(result.skippedApplicationSupportItems), appSupportErrorSkipped=\(result.errorSkippedApplicationSupportItems), prefsImported=\(result.importedPreferenceKeys), logsCopied=\(result.copiedLogItems)"
     )
     return result
+  }
+
+  /// Marks migration as completed without copying any data.
+  /// Used when user chooses "Start Fresh" after permission failures.
+  /// Old container data is preserved (not deleted).
+  func skipMigration() throws {
+    guard let configuration = configurationProvider() else {
+      throw MigrationError.configurationUnavailable
+    }
+    guard let bundleIdentifier = configuration.bundleIdentifier,
+          !bundleIdentifier.isEmpty else {
+      throw MigrationError.missingBundleIdentifier
+    }
+
+    let sourceDataDirectory = sandboxDataDirectory(
+      homeDirectory: configuration.homeDirectory,
+      bundleIdentifier: bundleIdentifier
+    )
+
+    sandboxOffMigrationLogger.info(
+      "Migration skipped by user (Start Fresh). Old data preserved at: \(sourceDataDirectory.path, privacy: .public)"
+    )
+
+    markCompleted(configuration, sourceDataDirectory: sourceDataDirectory)
   }
 
   private struct DirectoryMergeSummary {
     var copiedItems = 0
     var skippedItems = 0
+    var errorSkippedItems = 0
   }
 
   private struct PreferencesMigrationSummary {
@@ -261,53 +290,78 @@ final class SandboxOffDataMigrationService {
       withIntermediateDirectories: true
     )
 
-    let sourceItems = try fileManager.contentsOfDirectory(
-      at: sourceDirectory,
-      includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey],
-      options: []
-    )
+    let sourceItems: [URL]
+    do {
+      sourceItems = try fileManager.contentsOfDirectory(
+        at: sourceDirectory,
+        includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey],
+        options: []
+      )
+    } catch {
+      if error.isPermissionDenied {
+        sandboxOffMigrationLogger.warning(
+          "Cannot list directory (permission denied), skipping: \(sourceDirectory.lastPathComponent, privacy: .public)"
+        )
+        summary.errorSkippedItems += 1
+        return
+      }
+      throw error
+    }
 
     for sourceItem in sourceItems {
-      let destinationItem = destinationDirectory.appendingPathComponent(sourceItem.lastPathComponent)
-      let values = try sourceItem.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
-      let isDirectory = values.isDirectory == true && values.isSymbolicLink != true
+      do {
+        let destinationItem = destinationDirectory.appendingPathComponent(sourceItem.lastPathComponent)
+        let values = try sourceItem.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
+        let isDirectory = values.isDirectory == true && values.isSymbolicLink != true
 
-      if isDirectory {
-        if fileManager.fileExists(atPath: destinationItem.path) {
-          var isDestinationDirectory: ObjCBool = false
-          if fileManager.fileExists(atPath: destinationItem.path, isDirectory: &isDestinationDirectory),
-             isDestinationDirectory.boolValue {
+        if isDirectory {
+          if fileManager.fileExists(atPath: destinationItem.path) {
+            var isDestinationDirectory: ObjCBool = false
+            if fileManager.fileExists(atPath: destinationItem.path, isDirectory: &isDestinationDirectory),
+               isDestinationDirectory.boolValue {
+              try mergeDirectoryIfPresent(
+                from: sourceItem,
+                to: destinationItem,
+                configuration: configuration,
+                summary: &summary
+              )
+            } else {
+              summary.skippedItems += 1
+            }
+          } else {
             try mergeDirectoryIfPresent(
               from: sourceItem,
               to: destinationItem,
               configuration: configuration,
               summary: &summary
             )
-          } else {
-            summary.skippedItems += 1
           }
+          continue
+        }
+
+        guard !fileManager.fileExists(atPath: destinationItem.path) else {
+          summary.skippedItems += 1
+          continue
+        }
+
+        try copyItemAtomically(
+          from: sourceItem,
+          to: destinationItem,
+          fileManager: fileManager
+        )
+        summary.copiedItems += 1
+      } catch {
+        if error.isPermissionDenied {
+          sandboxOffMigrationLogger.warning(
+            "Skipping item (permission denied): \(sourceItem.lastPathComponent, privacy: .public)"
+          )
         } else {
-          try mergeDirectoryIfPresent(
-            from: sourceItem,
-            to: destinationItem,
-            configuration: configuration,
-            summary: &summary
+          sandboxOffMigrationLogger.error(
+            "Skipping item (unexpected error): \(sourceItem.lastPathComponent, privacy: .public) — \(error.localizedDescription, privacy: .public)"
           )
         }
-        continue
+        summary.errorSkippedItems += 1
       }
-
-      guard !fileManager.fileExists(atPath: destinationItem.path) else {
-        summary.skippedItems += 1
-        continue
-      }
-
-      try copyItemAtomically(
-        from: sourceItem,
-        to: destinationItem,
-        fileManager: fileManager
-      )
-      summary.copiedItems += 1
     }
   }
 

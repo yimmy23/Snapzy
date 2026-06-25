@@ -78,6 +78,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 
 
+
+## [1.25.1] - 2026-06-25
+
+### Bug Fixes
+-  Enhance Quick Access customization with drag-and-drop reordering support (#271) (dec814f)
+-  restore activation policy when preferences window closes (#275) (d88b86f)
+
+### Chore
+- chore(ci): skip AppStatusBarControllerTests in GitHub Actions runner (#275) (5562b7e)
+- chore: update install.sh, homebrew cask, and readme for notarized app (143b158)
+- chore: update appcast, cask, and readme for v1.25.0 (67a9aaf)
+
+### Contributors
+- @duongductrong
+- @github-actions[bot]
+
 ## [1.25.0] - 2026-06-25
 
 ### Features

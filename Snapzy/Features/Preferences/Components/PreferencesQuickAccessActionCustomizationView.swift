@@ -6,11 +6,14 @@
 //
 
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct QuickAccessActionCustomizationView: View {
   @ObservedObject var manager: QuickAccessManager
   @ObservedObject private var actionStore = QuickAccessActionConfigurationStore.shared
   @ObservedObject private var swipeActionStore = QuickAccessSwipeActionStore.shared
+  @State private var draggedAction: QuickAccessActionKind? = nil
+  @State private var mouseUpMonitor: Any?
 
   var body: some View {
     Section(L10n.PreferencesQuickAccess.previewSection) {
@@ -19,7 +22,8 @@ struct QuickAccessActionCustomizationView: View {
         QuickAccessSettingsPreviewCard(
           scale: CGFloat(manager.overlayScale),
           actionStore: actionStore,
-          swipeActionStore: swipeActionStore
+          swipeActionStore: swipeActionStore,
+          isReordering: draggedAction != nil
         )
         Spacer()
       }
@@ -33,22 +37,39 @@ struct QuickAccessActionCustomizationView: View {
           .foregroundColor(.secondary)
 
         List {
-          ForEach(actionStore.actionOrder) { action in
+          ForEach(Array(actionStore.actionOrder.enumerated()), id: \.element.id) { index, action in
             QuickAccessActionConfigurationRow(
               action: action,
               assignedSlot: actionStore.assignedSlot(for: action),
+              index: index,
+              actionStore: actionStore,
               isEnabled: Binding(
                 get: { actionStore.isEnabled(action) },
                 set: { actionStore.setEnabled(action, enabled: $0) }
-              )
+              ),
+              draggedAction: $draggedAction
             )
-          }
-          .onMove { source, destination in
-            actionStore.moveAction(from: source, to: destination)
           }
         }
         .frame(minHeight: 190)
         .clipShape(RoundedRectangle(cornerRadius: 8))
+        .onAppear {
+          // Authoritative drag-end signal: leftMouseUp always fires on the main thread
+          // at the end of every drag, even when performDrop is skipped because SwiftUI
+          // replaced a List row's drop delegate mid-reorder.
+          mouseUpMonitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseUp) { event in
+            if self.draggedAction != nil {
+              self.draggedAction = nil
+            }
+            return event
+          }
+        }
+        .onDisappear {
+          if let monitor = mouseUpMonitor {
+            NSEvent.removeMonitor(monitor)
+            mouseUpMonitor = nil
+          }
+        }
 
         HStack {
           Spacer()
@@ -66,26 +87,63 @@ struct QuickAccessActionCustomizationView: View {
 private struct QuickAccessActionConfigurationRow: View {
   let action: QuickAccessActionKind
   let assignedSlot: QuickAccessActionSlot?
+  let index: Int
+  let actionStore: QuickAccessActionConfigurationStore
   @Binding var isEnabled: Bool
+  @Binding var draggedAction: QuickAccessActionKind?
+  @State private var isHandleHovered = false
 
   var body: some View {
-    HStack(spacing: 10) {
-      actionLabel
+    HStack(spacing: 6) {
+      // Drag handle — reorder only
+      Image(systemName: "line.3.horizontal")
+        .font(.system(size: 11, weight: .medium))
+        .foregroundStyle(isHandleHovered ? .secondary : .quaternary)
+        .frame(width: 14)
+        .contentShape(Rectangle().inset(by: -4))
+        .onHover { isHandleHovered = $0 }
+        .onDrag {
+          self.draggedAction = action
+          let provider = DragTrackingItemProvider(object: "com.snapzy.quick-access-reorder|\(action.rawValue)" as NSString)
+          provider.onDeinit = {
+            Task { @MainActor in
+              self.draggedAction = nil
+            }
+          }
+          return provider
+        } preview: {
+          // No visual ghost — handle-drag is a reorder-only gesture.
+          // Returning an empty view keeps the system from spawning a default snapshot.
+          Color.clear.frame(width: 1, height: 1)
+        }
 
-      Spacer()
+      // Row body — slot assignment drag
+      HStack(spacing: 10) {
+        actionLabel
 
-      placementBadge
+        Spacer()
 
-      Toggle("", isOn: $isEnabled)
-        .labelsHidden()
+        placementBadge
+
+        Toggle("", isOn: $isEnabled)
+          .labelsHidden()
+      }
+      .contentShape(Rectangle())
+      .onDrag {
+        self.draggedAction = nil
+        return QuickAccessActionDragPayload.itemProvider(action: action, source: .actionList)
+      } preview: {
+        QuickAccessActionDragPreview(action: action)
+      }
     }
     .padding(.vertical, 2)
-    .contentShape(Rectangle())
-    .onDrag {
-      QuickAccessActionDragPayload.itemProvider(action: action, source: .actionList)
-    } preview: {
-      QuickAccessActionDragPreview(action: action)
-    }
+    .opacity(draggedAction == action ? 0.35 : 1.0)
+    .onDrop(of: [UTType.plainText.identifier], delegate: ReorderDropDelegate(
+      targetAction: action,
+      targetIndex: index,
+      actionStore: actionStore,
+      draggedAction: $draggedAction
+    ))
   }
 
   private var actionLabel: some View {
@@ -133,5 +191,53 @@ private struct QuickAccessActionDragPreview: View {
     )
     .shadow(color: Color.black.opacity(0.14), radius: 8, x: 0, y: 4)
     .fixedSize(horizontal: true, vertical: false)
+  }
+}
+
+private struct ReorderDropDelegate: DropDelegate {
+  private static let reorderMarker = "com.snapzy.quick-access-reorder"
+
+  let targetAction: QuickAccessActionKind
+  let targetIndex: Int
+  let actionStore: QuickAccessActionConfigurationStore
+  @Binding var draggedAction: QuickAccessActionKind?
+
+  func validateDrop(info: DropInfo) -> Bool {
+    draggedAction != nil
+  }
+
+  func dropEntered(info: DropInfo) {
+    guard let sourceAction = draggedAction,
+          sourceAction != targetAction else { return }
+
+    guard let sourceIndex = actionStore.actionOrder.firstIndex(of: sourceAction) else { return }
+
+    if sourceIndex != targetIndex {
+      withAnimation(.default) {
+        actionStore.moveAction(
+          from: IndexSet(integer: sourceIndex),
+          to: targetIndex > sourceIndex ? targetIndex + 1 : targetIndex
+        )
+      }
+    }
+  }
+
+  func performDrop(info: DropInfo) -> Bool {
+    // Belt-and-suspenders: also reset here for cases where the monitor fires late.
+    Task { @MainActor in
+      draggedAction = nil
+    }
+    return true
+  }
+
+  func dropUpdated(info: DropInfo) -> DropProposal? {
+    DropProposal(operation: .move)
+  }
+}
+
+private final class DragTrackingItemProvider: NSItemProvider {
+  var onDeinit: (() -> Void)?
+  deinit {
+    onDeinit?()
   }
 }

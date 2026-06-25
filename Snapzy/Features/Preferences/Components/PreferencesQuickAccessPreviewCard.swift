@@ -4,6 +4,7 @@ struct QuickAccessSettingsPreviewCard: View {
   let scale: CGFloat
   @ObservedObject var actionStore: QuickAccessActionConfigurationStore
   @ObservedObject var swipeActionStore: QuickAccessSwipeActionStore
+  let isReordering: Bool
 
   @State private var hoveredSlot: QuickAccessActionSlot?
   @State private var dropTargetSlot: QuickAccessActionSlot?
@@ -157,7 +158,7 @@ struct QuickAccessSettingsPreviewCard: View {
       }
       .contentShape(Rectangle())
       .onDrop(
-        of: QuickAccessActionDragPayload.typeIdentifiers,
+        of: isReordering ? [] : QuickAccessActionDragPayload.typeIdentifiers,
         isTargeted: $isRemoveTargeted
       ) { providers in
         QuickAccessActionDragPayload.load(from: providers) { payload in
@@ -201,7 +202,7 @@ struct QuickAccessSettingsPreviewCard: View {
     )
     return draggableSlot(slotView, slot: slot)
       .onDrop(
-        of: QuickAccessActionDragPayload.typeIdentifiers,
+        of: isReordering ? [] : QuickAccessActionDragPayload.typeIdentifiers,
         isTargeted: dropTargetBinding(for: slot)
       ) { providers in
         assignDroppedAction(from: providers, to: slot)
@@ -219,7 +220,7 @@ struct QuickAccessSettingsPreviewCard: View {
     return draggableSlot(slotView, slot: slot)
       .padding(6)
       .onDrop(
-        of: QuickAccessActionDragPayload.typeIdentifiers,
+        of: isReordering ? [] : QuickAccessActionDragPayload.typeIdentifiers,
         isTargeted: dropTargetBinding(for: slot)
       ) { providers in
         assignDroppedAction(from: providers, to: slot)
@@ -303,7 +304,7 @@ struct QuickAccessSettingsPreviewCard: View {
 
     return draggableSwipeTarget(swipeView, direction: direction, action: action)
       .onDrop(
-        of: QuickAccessActionDragPayload.typeIdentifiers,
+        of: isReordering ? [] : QuickAccessActionDragPayload.typeIdentifiers,
         isTargeted: swipeDropTargetBinding(for: direction)
       ) { providers in
         assignDroppedSwipeAction(from: providers, to: direction)

@@ -588,6 +588,8 @@ private struct DragFallbackSignature: Equatable {
       return "watermark|\(text)"
     case .embeddedImage(let assetId):
       return "embeddedImage|\(assetId.uuidString)"
+    case .spotlight:
+      return "spotlight"
     }
   }
 

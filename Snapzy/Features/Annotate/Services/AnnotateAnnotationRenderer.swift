@@ -108,6 +108,10 @@ struct AnnotationRenderer {
 
     case .embeddedImage(let assetId):
       drawEmbeddedImage(assetId: assetId, annotationId: annotation.id, in: annotation.bounds)
+
+    case .spotlight:
+      // Spotlight is rendered as a unified overlay pass, skip per-item drawing
+      break
     }
   }
 

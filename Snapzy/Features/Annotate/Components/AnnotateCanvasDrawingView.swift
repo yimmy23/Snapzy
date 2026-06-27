@@ -877,6 +877,32 @@ final class DrawingCanvasNSView: NSView {
         state.embeddedCGImage(for: assetId)
       }
     )
+
+    // Unified Spotlight overlay pass (draws overlay below other annotations, above base image).
+    // Opacity is sourced from each item's own properties so slider changes reflect immediately.
+    let spotlightCreationProps = state.annotationCreationProperties(for: .spotlight)
+    let spotlightRegions = state.annotations.compactMap { a -> SpotlightRegion? in
+      guard case .spotlight = a.type else { return nil }
+      return SpotlightRegion(rect: a.bounds, cornerRadius: a.properties.cornerRadius, opacity: a.properties.spotlightOpacity)
+    }
+    let spotlightPreview: SpotlightRegion? = (isDrawing && state.selectedTool == .spotlight)
+      ? dragStart.flatMap { s in
+          currentPath.last.map {
+            SpotlightRegion(
+              rect: CGRect(x: min(s.x, $0.x), y: min(s.y, $0.y), width: abs($0.x - s.x), height: abs($0.y - s.y)),
+              cornerRadius: spotlightCreationProps.cornerRadius,
+              opacity: spotlightCreationProps.spotlightOpacity
+            )
+          }
+        }
+      : nil
+    SpotlightCompositor.drawOverlay(
+      regions: spotlightRegions,
+      previewRegion: spotlightPreview,
+      canvasRect: effectiveCanvasBounds,
+      in: context
+    )
+
     for annotation in state.annotations {
       renderer.draw(annotation)
 
@@ -901,6 +927,8 @@ final class DrawingCanvasNSView: NSView {
           blurType: state.blurType,
           controlValue: state.annotationCreationProperties(for: .blur).strokeWidth
         )
+      } else if state.selectedTool == .spotlight {
+        // Spotlight preview is handled in the unified overlay pass above.
       } else {
         let previewProperties = state.annotationCreationProperties(for: state.selectedTool)
         renderer.drawCurrentStroke(

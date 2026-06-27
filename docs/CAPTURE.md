@@ -161,13 +161,14 @@ flowchart TD
 | `T` | Text |
 | `H` | Highlighter |
 | `B` | Blur |
+| `S` | Spotlight |
 | `N` | Counter |
 | `W` | Watermark |
 | `P` | Pencil |
 
 ### Supported Tools
 
-The inline overlay reuses the same drawing engine as the full Annotate editor and supports: Selection, Rectangle, Filled Rectangle, Oval, Arrow, Line, Text, Highlighter, Blur, Counter, Watermark, and Pencil.
+The inline overlay reuses the same drawing engine as the full Annotate editor and supports: Selection, Rectangle, Filled Rectangle, Oval, Arrow, Line, Text, Highlighter, Blur, Spotlight, Counter, Watermark, and Pencil.
 
 Crop and Mockup are **not** available in the inline overlay (full editor only).
 
@@ -476,6 +477,7 @@ flowchart TD
 | `Snapzy/Features/Annotate/InlineAreaAnnotateSession.swift` | Session state machine (selecting → annotating), key handling, finish/cancel |
 | `Snapzy/Features/Annotate/InlineAreaAnnotateWindow.swift` | Full overlay UI: selection gesture, canvas, toolbar, properties bar, action rail, resize handles |
 | `Snapzy/Features/Annotate/Services/AnnotateExporter.swift` | Final image render/export plus lightweight canvas-effect rendering for screenshot default presets |
+| `Snapzy/Features/Annotate/Services/AnnotateSpotlightCompositor.swift` | Compositing engine that renders overlapping spotlight regions using transparency layers and clear blend modes |
 | `Snapzy/Services/History/CaptureHistoryRetentionService.swift` | History retention, media cleanup, thumbnail cleanup, and orphan annotation sidecar cleanup |
 | `Snapzy/Features/VideoEditor/VideoEditorManager.swift` | Video editor window lifecycle |
 | `Snapzy/Features/VideoEditor/Services/VideoEditorAutoFocusEngine.swift` | Follow Mouse / Smart Camera path reconstruction |

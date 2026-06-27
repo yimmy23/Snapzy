@@ -62,6 +62,7 @@ final class AnnotateState: ObservableObject {
     var fontSize: CGFloat?
     var watermarkOpacity: CGFloat?
     var watermarkRotationDegrees: CGFloat?
+    var spotlightCornerRadius: CGFloat?
   }
 
   private struct PersistedAnnotationProperties: Codable {
@@ -185,6 +186,7 @@ final class AnnotateState: ObservableObject {
   @Published var arrowStyle: ArrowStyle = .straight
   @Published var arrowBendDirection: ArrowBendDirection = .primary
   @Published var watermarkText: String = "Snapzy"
+  @Published var spotlightOpacity: CGFloat = 0.5
   @Published private var annotationToolProperties: [AnnotationToolType: AnnotationProperties] = [:]
   private var isQuickPropertiesGestureEditing = false
   private var quickPropertiesGestureUndoSnapshot: AnnotationSnapshot?
@@ -2200,7 +2202,7 @@ final class AnnotateState: ObservableObject {
         clockwise: clockwise
       )
 
-    case .rectangle, .filledRectangle, .oval, .blur, .counter, .watermark, .embeddedImage:
+    case .rectangle, .filledRectangle, .oval, .blur, .counter, .watermark, .embeddedImage, .spotlight:
       // Bounds-only annotations: the rotated `bounds` above is the full transform we need.
       // Watermark `rotationDegrees` is user-controlled and clamped to ±45°, so we leave it
       // unchanged while moving the watermark region with the canvas.
@@ -2614,6 +2616,7 @@ final class AnnotateState: ObservableObject {
     opacity: CGFloat? = nil,
     rotationDegrees: CGFloat? = nil,
     watermarkStyle: WatermarkStyle? = nil,
+    spotlightOpacity: CGFloat? = nil,
     recordsUndo: Bool = false
   ) {
     guard let index = annotations.firstIndex(where: { $0.id == id }) else { return }
@@ -2632,7 +2635,8 @@ final class AnnotateState: ObservableObject {
       cornerRadius: cornerRadius,
       opacity: opacity,
       rotationDegrees: rotationDegrees,
-      watermarkStyle: watermarkStyle
+      watermarkStyle: watermarkStyle,
+      spotlightOpacity: spotlightOpacity
     ) else { return }
 
     if recordsUndo {
@@ -2678,6 +2682,9 @@ final class AnnotateState: ObservableObject {
     if let watermarkStyle = watermarkStyle {
       annotations[index].properties.watermarkStyle = watermarkStyle
     }
+    if let spotlightOpacity = spotlightOpacity {
+      annotations[index].properties.spotlightOpacity = AnnotationProperties.clampedSpotlightOpacity(spotlightOpacity)
+    }
     hasUnsavedChanges = true
   }
 
@@ -2718,7 +2725,8 @@ final class AnnotateState: ObservableObject {
     cornerRadius: CGFloat? = nil,
     opacity: CGFloat? = nil,
     rotationDegrees: CGFloat? = nil,
-    watermarkStyle: WatermarkStyle? = nil
+    watermarkStyle: WatermarkStyle? = nil,
+    spotlightOpacity: CGFloat? = nil
   ) -> Bool {
     let properties = annotation.properties
     let colorUpdate = normalizedColorUpdate(
@@ -2757,6 +2765,10 @@ final class AnnotateState: ObservableObject {
     }
     if let watermarkStyle,
        properties.watermarkStyle != watermarkStyle {
+      return true
+    }
+    if let spotlightOpacity,
+       properties.spotlightOpacity != AnnotationProperties.clampedSpotlightOpacity(spotlightOpacity) {
       return true
     }
     return false
@@ -2989,7 +3001,8 @@ final class AnnotateState: ObservableObject {
       cornerRadius: defaults.cornerRadius.map { max(0, $0) },
       fontSize: defaults.fontSize.map { min(max($0, 12), 72) },
       watermarkOpacity: defaults.watermarkOpacity.map(AnnotationProperties.clampedOpacity(_:)),
-      watermarkRotationDegrees: defaults.watermarkRotationDegrees.map(AnnotationProperties.clampedRotationDegrees(_:))
+      watermarkRotationDegrees: defaults.watermarkRotationDegrees.map(AnnotationProperties.clampedRotationDegrees(_:)),
+      spotlightCornerRadius: defaults.spotlightCornerRadius.map { max(0, $0) }
     )
   }
 
@@ -3049,13 +3062,20 @@ final class AnnotateState: ObservableObject {
     sharedAnnotationParameterDefaults.cornerRadius = clampedRadius
     persistSharedAnnotationParameterDefaults()
 
-    for tool in AnnotationToolType.allCases where tool.supportsQuickCornerRadius {
+    for tool in AnnotationToolType.allCases where tool.supportsQuickCornerRadius && tool != .spotlight {
       updateDefaultAnnotationProperties(for: tool, cornerRadius: clampedRadius)
     }
 
     if !selectedTool.supportsQuickPropertiesBar {
       rectangleCornerRadius = clampedRadius
     }
+  }
+
+  private func rememberSharedSpotlightCornerRadius(_ cornerRadius: CGFloat) {
+    let clampedRadius = max(0, cornerRadius)
+    sharedAnnotationParameterDefaults.spotlightCornerRadius = clampedRadius
+    persistSharedAnnotationParameterDefaults()
+    updateDefaultAnnotationProperties(for: .spotlight, cornerRadius: clampedRadius)
   }
 
   private func rememberSharedAnnotationFontSize(_ fontSize: CGFloat) {
@@ -3110,7 +3130,11 @@ final class AnnotateState: ObservableObject {
 
   private func rememberAnnotationCornerRadius(_ cornerRadius: CGFloat, for tool: AnnotationToolType?) {
     guard !isQuickPropertiesSyncEnabled else {
-      rememberSharedAnnotationCornerRadius(cornerRadius)
+      if tool == .spotlight {
+        rememberSharedSpotlightCornerRadius(cornerRadius)
+      } else {
+        rememberSharedAnnotationCornerRadius(cornerRadius)
+      }
       return
     }
 
@@ -3191,6 +3215,18 @@ final class AnnotateState: ObservableObject {
   }
 
   private func baseAnnotationProperties(for tool: AnnotationToolType) -> AnnotationProperties {
+    if tool == .spotlight {
+      var properties = AnnotationProperties(
+        strokeColor: sharedAnnotationColor ?? .red,
+        fillColor: .clear,
+        strokeWidth: 3,
+        cornerRadius: 14,
+        opacity: 1.0,
+        spotlightOpacity: spotlightOpacity
+      )
+      applySharedParameterDefaults(to: &properties, for: tool)
+      return properties
+    }
     if tool != .watermark {
       var properties = AnnotationProperties(strokeColor: sharedAnnotationColor ?? .red)
       if tool == .blur {
@@ -3265,9 +3301,16 @@ final class AnnotateState: ObservableObject {
       properties.strokeWidth = strokeWidth
     }
 
-    if tool == nil || tool?.supportsQuickCornerRadius == true,
-       let cornerRadius = defaults.cornerRadius {
-      properties.cornerRadius = cornerRadius
+    if tool == .spotlight {
+      if let cornerRadius = defaults.spotlightCornerRadius {
+        properties.cornerRadius = cornerRadius
+      } else {
+        properties.cornerRadius = 14
+      }
+    } else if tool == nil || tool?.supportsQuickCornerRadius == true {
+      if let cornerRadius = defaults.cornerRadius {
+        properties.cornerRadius = cornerRadius
+      }
     }
 
     if tool == nil || tool == .text || tool == .watermark,
@@ -3303,7 +3346,8 @@ final class AnnotateState: ObservableObject {
     fontName: String? = nil,
     opacity: CGFloat? = nil,
     rotationDegrees: CGFloat? = nil,
-    watermarkStyle: WatermarkStyle? = nil
+    watermarkStyle: WatermarkStyle? = nil,
+    spotlightOpacity: CGFloat? = nil
   ) {
     var properties = defaultAnnotationProperties(for: tool)
 
@@ -3340,6 +3384,9 @@ final class AnnotateState: ObservableObject {
     if let watermarkStyle = watermarkStyle {
       properties.watermarkStyle = watermarkStyle
     }
+    if let spotlightOpacity = spotlightOpacity {
+      properties.spotlightOpacity = AnnotationProperties.clampedSpotlightOpacity(spotlightOpacity)
+    }
 
     let sanitized = sanitizedAnnotationProperties(properties, for: tool)
     annotationToolProperties[tool] = sanitized
@@ -3373,6 +3420,9 @@ final class AnnotateState: ObservableObject {
     strokeWidth = properties.strokeWidth
     if tool.supportsQuickCornerRadius {
       rectangleCornerRadius = properties.cornerRadius
+    }
+    if tool == .spotlight {
+      spotlightOpacity = properties.spotlightOpacity
     }
   }
 
@@ -3434,6 +3484,7 @@ final class AnnotateState: ObservableObject {
     opacity: CGFloat? = nil,
     rotationDegrees: CGFloat? = nil,
     watermarkStyle: WatermarkStyle? = nil,
+    spotlightOpacity: CGFloat? = nil,
     recordsUndo: Bool = false,
     matching predicate: ((AnnotationType) -> Bool)? = nil
   ) -> Bool {
@@ -3452,7 +3503,8 @@ final class AnnotateState: ObservableObject {
         cornerRadius: cornerRadius,
         opacity: opacity,
         rotationDegrees: rotationDegrees,
-        watermarkStyle: watermarkStyle
+        watermarkStyle: watermarkStyle,
+        spotlightOpacity: spotlightOpacity
       )
     })
 
@@ -3475,7 +3527,8 @@ final class AnnotateState: ObservableObject {
         cornerRadius: cornerRadius,
         opacity: opacity,
         rotationDegrees: rotationDegrees,
-        watermarkStyle: watermarkStyle
+        watermarkStyle: watermarkStyle,
+        spotlightOpacity: spotlightOpacity
       )
     }
     return true
@@ -3949,6 +4002,13 @@ final class AnnotateState: ObservableObject {
     return quickPropertiesTool?.supportsQuickCornerRadius ?? false
   }
 
+  var quickPropertiesSupportsSpotlightOpacity: Bool {
+    if !quickPropertiesSelectionAnnotations.isEmpty {
+      return quickSelectionAnySupport { if case .spotlight = $0 { return true }; return false }
+    }
+    return quickPropertiesTool == .spotlight
+  }
+
   var quickStrokeColorBinding: Binding<Color> {
     Binding(
       get: { [weak self] in
@@ -4040,6 +4100,35 @@ final class AnnotateState: ObservableObject {
         }
       }
     )
+  }
+
+  var quickSpotlightOpacityBinding: Binding<CGFloat> {
+    Binding(
+      get: { [weak self] in
+        guard let self else { return 0.5 }
+        return self.quickSelectionTargets(matching: { if case .spotlight = $0 { return true }; return false }).first?.properties.spotlightOpacity
+          ?? self.defaultAnnotationProperties(for: self.quickPropertiesTool).spotlightOpacity
+      },
+      set: { [weak self] newOpacity in
+        guard let self else { return }
+        if !self.updateQuickSelectionProperties(
+          spotlightOpacity: newOpacity,
+          recordsUndo: true,
+          matching: { if case .spotlight = $0 { return true }; return false }
+        ) {
+          self.rememberAnnotationSpotlightOpacity(newOpacity, for: self.quickPropertiesTool)
+        }
+      }
+    )
+  }
+
+  private func rememberAnnotationSpotlightOpacity(_ opacity: CGFloat, for tool: AnnotationToolType?) {
+    let clampedOpacity = AnnotationProperties.clampedSpotlightOpacity(opacity)
+    // Always sync the global published value so annotationCreationProperties picks it up for new regions.
+    self.spotlightOpacity = clampedOpacity
+    if let tool, tool == .spotlight {
+      updateDefaultAnnotationProperties(for: tool, spotlightOpacity: clampedOpacity)
+    }
   }
 
   func activateTool(_ tool: AnnotationToolType) {

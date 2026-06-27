@@ -123,4 +123,13 @@ final class AnnotateShortcutManagerTests: XCTestCase {
     XCTAssertNil(manager.shortcut(for: .autoRedactSensitiveData))
     XCTAssertTrue(manager.isActionShortcutEnabled(for: .autoRedactSensitiveData))
   }
+
+  func testSpotlightShortcut_isConfigurableAndMappable() {
+    XCTAssertTrue(AnnotateShortcutManager.configurableTools.contains(.spotlight))
+    XCTAssertEqual(manager.shortcut(for: .spotlight), "s")
+
+    manager.setShortcut("k", for: .spotlight)
+    XCTAssertEqual(manager.shortcut(for: .spotlight), "k")
+    XCTAssertEqual(manager.tool(for: "k"), .spotlight)
+  }
 }

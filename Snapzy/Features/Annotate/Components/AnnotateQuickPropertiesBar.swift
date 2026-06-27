@@ -201,7 +201,8 @@ struct AnnotateQuickPropertiesBar: View {
     let hasBeforeWatermarkOpacity = hasBeforeWatermarkStyle || showWatermark
     let hasBeforeWatermarkRotation = hasBeforeWatermarkOpacity || showWatermark
     let hasBeforeBlurType = hasBeforeWatermarkRotation || showWatermark
-    let hasBeforeStrokeWidth = hasBeforeBlurType || showBlurType
+    let hasBeforeSpotlightOpacity = hasBeforeBlurType || showBlurType
+    let hasBeforeStrokeWidth = hasBeforeSpotlightOpacity || state.quickPropertiesSupportsSpotlightOpacity
     let hasBeforeCornerRadius = hasBeforeStrokeWidth || showStrokeWidth
     let hasBeforeArrowStyle = hasBeforeCornerRadius || showCornerRadius
 
@@ -373,6 +374,19 @@ struct AnnotateQuickPropertiesBar: View {
         QuickAutoRedactControl(
           state: state,
           buttonWidth: density.controlButtonWidth,
+          groupSpacing: density.groupSpacing
+        )
+      }
+
+      activePropertySlot(
+        isVisible: state.quickPropertiesSupportsSpotlightOpacity,
+        isEnabled: state.quickPropertiesSupportsSpotlightOpacity,
+        showsLeadingDivider: hasBeforeSpotlightOpacity,
+        width: density.opacityControlWidth
+      ) {
+        QuickSpotlightOpacityControl(
+          value: state.quickSpotlightOpacityBinding,
+          sliderWidth: density.sliderWidth,
           groupSpacing: density.groupSpacing
         )
       }
@@ -1469,6 +1483,33 @@ private struct QuickWatermarkOpacityControl: View {
           .foregroundColor(.secondary)
 
         Slider(value: $value.stepped(by: 0.01, in: 0.05 ... 0.65), in: 0.05 ... 0.65)
+          .frame(width: sliderWidth)
+          .controlSize(.small)
+
+        Text("\(Int((value * 100).rounded()))%")
+          .font(Typography.labelSmall)
+          .foregroundColor(SidebarColors.labelSecondary)
+          .lineLimit(1)
+          .monospacedDigit()
+          .frame(width: 38, alignment: .trailing)
+      }
+    }
+  }
+}
+
+private struct QuickSpotlightOpacityControl: View {
+  @Binding var value: CGFloat
+  let sliderWidth: CGFloat
+  let groupSpacing: CGFloat
+
+  var body: some View {
+    QuickPropertiesGroup(title: L10n.AnnotateUI.spotlightOpacity, spacing: groupSpacing) {
+      HStack(spacing: 6) {
+        Image(systemName: "circle.lefthalf.filled")
+          .font(.system(size: 10))
+          .foregroundColor(.secondary)
+
+        Slider(value: $value.stepped(by: 0.01, in: 0.1 ... 0.9), in: 0.1 ... 0.9)
           .frame(width: sliderWidth)
           .controlSize(.small)
 

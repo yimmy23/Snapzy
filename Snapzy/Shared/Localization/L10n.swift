@@ -4840,6 +4840,11 @@ enum L10n {
       defaultValue: "Opacity",
       comment: "Label for watermark opacity controls"
     )
+    static let spotlightOpacity = string(
+      "annotate.spotlight-opacity",
+      defaultValue: "Darkness",
+      comment: "Label for spotlight darkness controls"
+    )
     static let straight = string(
       "annotate.straight",
       defaultValue: "Straight",
@@ -6503,6 +6508,11 @@ enum L10n {
     static let blurTool = string(
       "annotate.tool.blur",
       defaultValue: "Blur",
+      comment: "Annotation tool display name"
+    )
+    static let spotlightTool = string(
+      "annotate.tool.spotlight",
+      defaultValue: "Spotlight",
       comment: "Annotation tool display name"
     )
     static let counterTool = string(

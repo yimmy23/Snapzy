@@ -484,6 +484,25 @@ final class AnnotateExporter {
     // Reset clip
     context.resetClip()
 
+    // Unified Spotlight overlay pass (drawn below other annotations, above base image).
+    // Opacity sourced from per-item properties so exported image matches the on-screen appearance.
+    let spotlightRegions: [SpotlightRegion] = state.annotations.compactMap { a in
+      guard case .spotlight = a.type else { return nil }
+      let offset = offsetAnnotationForExport(
+        a,
+        cropOrigin: effectiveBounds.origin,
+        imageX: destX,
+        imageY: destY
+      )
+      return SpotlightRegion(rect: offset.bounds, cornerRadius: offset.properties.cornerRadius, opacity: offset.properties.spotlightOpacity)
+    }
+    SpotlightCompositor.drawOverlay(
+      regions: spotlightRegions,
+      previewRegion: nil,
+      canvasRect: CGRect(x: destX, y: destY, width: effectiveBounds.width, height: effectiveBounds.height),
+      in: context
+    )
+
     // Draw annotations (offset by crop origin and image position based on alignment)
     let renderer = AnnotationRenderer(
       context: context,
@@ -496,6 +515,7 @@ final class AnnotateExporter {
       }
     )
     for annotation in state.annotations {
+      if case .spotlight = annotation.type { continue }
       // Only include annotations that intersect with crop bounds
       if let cropRect = state.cropRect {
         guard annotation.bounds.intersects(cropRect) else { continue }

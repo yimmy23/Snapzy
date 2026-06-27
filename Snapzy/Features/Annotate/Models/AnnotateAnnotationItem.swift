@@ -529,6 +529,7 @@ enum AnnotationType: Equatable {
   case counter(Int)
   case watermark(String)
   case embeddedImage(UUID)
+  case spotlight
 
   /// Corresponding toolbar tool type for this annotation
   var toolType: AnnotationToolType {
@@ -545,6 +546,7 @@ enum AnnotationType: Equatable {
     case .counter: return .counter
     case .watermark: return .watermark
     case .embeddedImage: return .selection
+    case .spotlight: return .spotlight
     }
   }
 
@@ -588,6 +590,7 @@ struct AnnotationProperties: Equatable {
   var opacity: CGFloat
   var rotationDegrees: CGFloat
   var watermarkStyle: WatermarkStyle
+  var spotlightOpacity: CGFloat
 
   init(
     strokeColor: Color = .red,
@@ -598,7 +601,8 @@ struct AnnotationProperties: Equatable {
     fontName: String = "SF Pro",
     opacity: CGFloat = 1,
     rotationDegrees: CGFloat = 0,
-    watermarkStyle: WatermarkStyle = .single
+    watermarkStyle: WatermarkStyle = .single,
+    spotlightOpacity: CGFloat = 0.5
   ) {
     self.strokeColor = strokeColor
     self.fillColor = fillColor
@@ -609,6 +613,7 @@ struct AnnotationProperties: Equatable {
     self.opacity = opacity
     self.rotationDegrees = rotationDegrees
     self.watermarkStyle = watermarkStyle
+    self.spotlightOpacity = spotlightOpacity
   }
 
   static func clampedControlValue(_ value: CGFloat) -> CGFloat {
@@ -657,6 +662,10 @@ struct AnnotationProperties: Equatable {
 
   static func clampedOpacity(_ value: CGFloat) -> CGFloat {
     min(max(value, 0.05), 0.65)
+  }
+
+  static func clampedSpotlightOpacity(_ value: CGFloat) -> CGFloat {
+    min(max(value, 0.1), 0.9)
   }
 
   static func clampedRotationDegrees(_ value: CGFloat) -> CGFloat {
@@ -719,7 +728,7 @@ extension AnnotationItem {
     let tolerance = baseTolerance + properties.strokeWidth / 2
 
     switch type {
-    case .rectangle, .filledRectangle, .blur(_), .watermark, .embeddedImage:
+    case .rectangle, .filledRectangle, .blur(_), .watermark, .embeddedImage, .spotlight:
       return bounds.contains(point)
 
     case .oval:

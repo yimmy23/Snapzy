@@ -88,6 +88,10 @@ enum AnnotationFactory {
     case .blur:
       type = .blur(context.blurType)
 
+    case .spotlight:
+      if abs(end.x - start.x) < 8 || abs(end.y - start.y) < 8 { return nil }
+      type = .spotlight
+
     case .counter:
       type = .counter(context.counterValue)
 

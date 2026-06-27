@@ -19,6 +19,7 @@ enum AnnotationToolType: String, CaseIterable, Identifiable {
   case text
   case highlighter
   case blur
+  case spotlight
   case counter
   case watermark
   case pencil
@@ -31,7 +32,7 @@ enum AnnotationToolType: String, CaseIterable, Identifiable {
   /// two surfaces stay in sync when tools are added.
   static let drawableTools: [AnnotationToolType] = [
     .rectangle, .filledRectangle, .oval, .arrow, .line, .text, .highlighter,
-    .blur, .counter, .watermark, .pencil
+    .blur, .spotlight, .counter, .watermark, .pencil
   ]
 
   static let inlineAnnotateTools: [AnnotationToolType] = [.selection] + drawableTools
@@ -58,6 +59,7 @@ enum AnnotationToolType: String, CaseIterable, Identifiable {
     case .text: return "character.textbox"
     case .highlighter: return "highlighter"
     case .blur: return "eye.slash"
+    case .spotlight: return "viewfinder"
     case .counter: return "list.number"
     case .watermark: return "seal"
     case .pencil: return "pencil"
@@ -78,6 +80,7 @@ enum AnnotationToolType: String, CaseIterable, Identifiable {
     case .text: return "t"
     case .highlighter: return "h"
     case .blur: return "b"
+    case .spotlight: return "s"
     case .counter: return "n"
     case .watermark: return "w"
     case .pencil: return "p"
@@ -98,6 +101,7 @@ enum AnnotationToolType: String, CaseIterable, Identifiable {
     case .text: return L10n.Annotate.textTool
     case .highlighter: return L10n.Annotate.highlighterTool
     case .blur: return L10n.Annotate.blurTool
+    case .spotlight: return L10n.Annotate.spotlightTool
     case .counter: return L10n.Annotate.counterTool
     case .watermark: return L10n.Annotate.watermarkTool
     case .pencil: return L10n.Annotate.pencilTool
@@ -107,7 +111,7 @@ enum AnnotationToolType: String, CaseIterable, Identifiable {
 
   var supportsQuickPropertiesBar: Bool {
     switch self {
-    case .rectangle, .filledRectangle, .oval, .arrow, .line, .text, .highlighter, .blur, .counter, .watermark, .pencil:
+    case .rectangle, .filledRectangle, .oval, .arrow, .line, .text, .highlighter, .blur, .spotlight, .counter, .watermark, .pencil:
       return true
     case .selection, .crop, .mockup:
       return false
@@ -119,7 +123,7 @@ enum AnnotationToolType: String, CaseIterable, Identifiable {
   /// flow, and freehand tools keep their existing path-count behavior.
   var requiresDragToCreateAnnotation: Bool {
     switch self {
-    case .rectangle, .filledRectangle, .oval, .arrow, .line, .blur, .watermark:
+    case .rectangle, .filledRectangle, .oval, .arrow, .line, .blur, .spotlight, .watermark:
       return true
     case .selection, .crop, .text, .highlighter, .counter, .pencil, .mockup:
       return false
@@ -130,7 +134,7 @@ enum AnnotationToolType: String, CaseIterable, Identifiable {
     switch self {
     case .rectangle, .filledRectangle, .oval, .arrow, .line, .text, .highlighter, .counter, .watermark, .pencil:
       return true
-    case .selection, .crop, .blur, .mockup:
+    case .selection, .crop, .blur, .spotlight, .mockup:
       return false
     }
   }
@@ -143,14 +147,14 @@ enum AnnotationToolType: String, CaseIterable, Identifiable {
     switch self {
     case .rectangle, .filledRectangle, .oval, .arrow, .line, .highlighter, .blur, .counter, .pencil:
       return true
-    case .selection, .crop, .text, .watermark, .mockup:
+    case .selection, .crop, .text, .watermark, .spotlight, .mockup:
       return false
     }
   }
 
   var supportsQuickCornerRadius: Bool {
     switch self {
-    case .rectangle, .filledRectangle:
+    case .rectangle, .filledRectangle, .spotlight:
       return true
     case .selection, .crop, .oval, .arrow, .line, .text, .highlighter, .blur, .counter, .watermark, .pencil, .mockup:
       return false

@@ -108,7 +108,7 @@ struct PersistedAnnotationItem: Codable, Equatable {
 
 struct PersistedAnnotationType: Codable, Equatable {
   enum Kind: String, Codable {
-    case path, rectangle, filledRectangle, oval, arrow, line, text, highlight, blur, counter, watermark, embeddedImage
+    case path, rectangle, filledRectangle, oval, arrow, line, text, highlight, blur, counter, watermark, embeddedImage, spotlight
   }
 
   var kind: Kind
@@ -157,6 +157,8 @@ struct PersistedAnnotationType: Codable, Equatable {
     case .embeddedImage(let assetId):
       kind = .embeddedImage
       embeddedImageAssetId = assetId
+    case .spotlight:
+      kind = .spotlight
     }
   }
 
@@ -188,6 +190,8 @@ struct PersistedAnnotationType: Codable, Equatable {
     case .embeddedImage:
       guard let embeddedImageAssetId else { return nil }
       return .embeddedImage(embeddedImageAssetId)
+    case .spotlight:
+      return .spotlight
     }
   }
 }

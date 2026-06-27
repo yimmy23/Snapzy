@@ -2021,4 +2021,98 @@ final class AnnotateCoreTests: XCTestCase {
   private func rgbaIndex(x: Int, y: Int, width: Int) -> Int {
     (y * width + x) * 4
   }
+
+  @MainActor
+  func testSpotlightAnnotationCreation() {
+    let defaults = UserDefaultsFactory.make()
+    let state = makeAnnotateState(defaults: defaults)
+    let start = CGPoint(x: 10, y: 10)
+    let end = CGPoint(x: 100, y: 100)
+    let item = AnnotationFactory.createAnnotation(
+      tool: .spotlight,
+      from: start,
+      to: end,
+      path: [],
+      state: state
+    )
+    XCTAssertNotNil(item)
+    XCTAssertEqual(item?.type, .spotlight)
+    XCTAssertEqual(item?.bounds, CGRect(x: 10, y: 10, width: 90, height: 90))
+    XCTAssertEqual(item?.properties.spotlightOpacity, 0.5)
+    XCTAssertEqual(item?.properties.cornerRadius, 14)
+  }
+
+  @MainActor
+  func testSpotlightAnnotationCreationDegenerateDrag() {
+    let defaults = UserDefaultsFactory.make()
+    let state = makeAnnotateState(defaults: defaults)
+    let start = CGPoint(x: 10, y: 10)
+    let end = CGPoint(x: 15, y: 15) // less than 8px drag
+    let item = AnnotationFactory.createAnnotation(
+      tool: .spotlight,
+      from: start,
+      to: end,
+      path: [],
+      state: state
+    )
+    XCTAssertNil(item)
+  }
+
+  @MainActor
+  func testSpotlightCornerRadiusIsolation() {
+    let defaults = UserDefaultsFactory.make()
+    let state = makeAnnotateState(defaults: defaults)
+    
+    // Set rectangle corner radius default to 0
+    state.selectedTool = .rectangle
+    state.quickCornerRadiusBinding.wrappedValue = 0
+    
+    // Creating a spotlight annotation should still default to 14 corner radius
+    let start = CGPoint(x: 10, y: 10)
+    let end = CGPoint(x: 100, y: 100)
+    let item = AnnotationFactory.createAnnotation(
+      tool: .spotlight,
+      from: start,
+      to: end,
+      path: [],
+      state: state
+    )
+    XCTAssertEqual(item?.properties.cornerRadius, 14)
+  }
+
+  @MainActor
+  func testSpotlightOpacityStoredPerItem() throws {
+    // Verifies the opacity-source fix: per-item spotlightOpacity is what gets persisted
+    // and read by the compositor, not the global state.spotlightOpacity.
+    let defaults = UserDefaultsFactory.make()
+    let state = makeAnnotateState(defaults: defaults)
+
+    // Change global opacity before creating the item
+    state.spotlightOpacity = 0.8
+
+    let item = AnnotationFactory.createAnnotation(
+      tool: .spotlight,
+      from: CGPoint(x: 0, y: 0),
+      to: CGPoint(x: 100, y: 100),
+      path: [],
+      state: state
+    )
+    let unwrapped = try XCTUnwrap(item)
+    // Item must carry the opacity at creation time, not the default 0.5
+    XCTAssertEqual(unwrapped.properties.spotlightOpacity, 0.8, accuracy: 0.001)
+  }
+
+  @MainActor
+  func testSpotlightOpacityClamp() {
+    XCTAssertEqual(AnnotationProperties.clampedSpotlightOpacity(0.0), 0.1, accuracy: 0.001)
+    XCTAssertEqual(AnnotationProperties.clampedSpotlightOpacity(1.0), 0.9, accuracy: 0.001)
+    XCTAssertEqual(AnnotationProperties.clampedSpotlightOpacity(0.5), 0.5, accuracy: 0.001)
+  }
+
+  @MainActor
+  func testSpotlightRegionCarriesOpacity() {
+    // SpotlightRegion must carry opacity so the compositor can source it per-item.
+    let region = SpotlightRegion(rect: CGRect(x: 0, y: 0, width: 100, height: 100), cornerRadius: 14, opacity: 0.75)
+    XCTAssertEqual(region.opacity, 0.75, accuracy: 0.001)
+  }
 }

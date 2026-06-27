@@ -42,6 +42,7 @@ struct PersistedAnnotationProperties: Codable, Equatable {
   var opacity: CGFloat
   var rotationDegrees: CGFloat
   var watermarkStyle: String
+  var spotlightOpacity: CGFloat?
 
   init(properties: AnnotationProperties) {
     strokeColor = RGBAColor(color: properties.strokeColor) ?? RGBAColor(red: 1, green: 0, blue: 0, alpha: 1)
@@ -53,6 +54,7 @@ struct PersistedAnnotationProperties: Codable, Equatable {
     opacity = properties.opacity
     rotationDegrees = properties.rotationDegrees
     watermarkStyle = properties.watermarkStyle.rawValue
+    spotlightOpacity = properties.spotlightOpacity
   }
 
   var annotationProperties: AnnotationProperties {
@@ -65,7 +67,8 @@ struct PersistedAnnotationProperties: Codable, Equatable {
       fontName: fontName,
       opacity: opacity,
       rotationDegrees: rotationDegrees,
-      watermarkStyle: WatermarkStyle(rawValue: watermarkStyle) ?? .single
+      watermarkStyle: WatermarkStyle(rawValue: watermarkStyle) ?? .single,
+      spotlightOpacity: spotlightOpacity ?? 0.5
     )
   }
 }

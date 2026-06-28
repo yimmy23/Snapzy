@@ -104,6 +104,7 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = A36462B02F18EEDB0003453D /* Build configuration list for PBXNativeTarget "Snapzy" */;
 			buildPhases = (
+				A36462C02F18EEDA0003453D /* SwiftFormat */,
 				A364629F2F18EEDA0003453D /* Sources */,
 				A36462A02F18EEDA0003453D /* Frameworks */,
 				A36462A12F18EEDA0003453D /* Resources */,
@@ -218,6 +219,27 @@
 		};
 /* End PBXResourcesBuildPhase section */
 
+/* Begin PBXShellScriptBuildPhase section */
+		A36462C02F18EEDA0003453D /* SwiftFormat */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = SwiftFormat;
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "if which swiftformat >/dev/null; then\n  # swiftformat \"${SRCROOT}/Snapzy\" \"${SRCROOT}/SnapzyTests\"\n  echo \"SwiftFormat is configured but disabled by default.\"\nelse\n  echo \"warning: SwiftFormat not installed. Install via 'brew install swiftformat'.\"\nfi\n";
+		};
+/* End PBXShellScriptBuildPhase section */
+
 /* Begin PBXSourcesBuildPhase section */
 		A364629F2F18EEDA0003453D /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
@@ -282,7 +304,7 @@
 				DEVELOPMENT_TEAM = XMHV5GH2Z7;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
@@ -346,7 +368,7 @@
 				DEVELOPMENT_TEAM = XMHV5GH2Z7;
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
 				GCC_C_LANGUAGE_STANDARD = gnu17;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;

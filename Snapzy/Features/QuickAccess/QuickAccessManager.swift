@@ -107,6 +107,18 @@ final class QuickAccessManager: ObservableObject {
     }
   }
   @Published private(set) var openEditorShortcut: ShortcutConfig?
+  @Published var openEditorShortcutEnabled: Bool = false {
+    didSet {
+      UserDefaults.standard.set(openEditorShortcutEnabled, forKey: Keys.openEditorShortcutEnabled)
+      if openEditorShortcutEnabled {
+        if panelController.isVisible {
+          installEditHotKeyIfNeeded()
+        }
+      } else {
+        removeEditHotKey()
+      }
+    }
+  }
 
   static let defaultOpenEditorShortcut = ShortcutConfig(
     keyCode: UInt32(kVK_Return),
@@ -147,6 +159,7 @@ final class QuickAccessManager: ObservableObject {
     static let swipeSensitivity = "floatingScreenshot.swipeSensitivity"
     static let pauseCountdownOnHover = "floatingScreenshot.pauseCountdownOnHover"
     static let openEditorShortcut = "quickAccess.openEditorShortcut"
+    static let openEditorShortcutEnabled = "quickAccess.openEditorShortcutEnabled"
   }
 
   private let explicitEmptyShortcutData = Data("null".utf8)
@@ -189,6 +202,8 @@ final class QuickAccessManager: ObservableObject {
       UserDefaults.standard.object(forKey: Keys.swipeSensitivity) as? Double ?? 1.0
     pauseCountdownOnHover =
       UserDefaults.standard.object(forKey: Keys.pauseCountdownOnHover) as? Bool ?? true
+    openEditorShortcutEnabled =
+      UserDefaults.standard.object(forKey: Keys.openEditorShortcutEnabled) as? Bool ?? false
     loadOpenEditorShortcut()
     DiagnosticLogger.shared.log(
       .debug,
@@ -1162,6 +1177,7 @@ final class QuickAccessManager: ObservableObject {
   }
 
   private func installEditHotKeyIfNeeded() {
+    guard openEditorShortcutEnabled else { return }
     guard editHotKeyRef == nil, let shortcut = openEditorShortcut else { return }
 
     if editHotKeyHandler == nil {
@@ -1224,7 +1240,7 @@ final class QuickAccessManager: ObservableObject {
     } else {
       UserDefaults.standard.set(explicitEmptyShortcutData, forKey: Keys.openEditorShortcut)
     }
-    if editHotKeyRef != nil {
+    if editHotKeyRef != nil || openEditorShortcutEnabled {
       removeEditHotKey()
       installEditHotKeyIfNeeded()
     }

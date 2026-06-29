@@ -31,6 +31,7 @@ struct ShortcutsSettingsView: View {
   @State private var shortcutListShortcut: ShortcutConfig?
   @State private var historyShortcut: ShortcutConfig?
   @State private var openEditorShortcut: ShortcutConfig?
+  @State private var openEditorShortcutEnabled: Bool
   @State private var copyAndCloseShortcut: ShortcutConfig?
   @State private var toggleSidebarShortcut: ShortcutConfig?
   @State private var togglePinShortcut: ShortcutConfig?
@@ -86,6 +87,7 @@ struct ShortcutsSettingsView: View {
     _shortcutListShortcut = State(initialValue: KeyboardShortcutManager.shared.shortcut(for: .shortcutList))
     _historyShortcut = State(initialValue: KeyboardShortcutManager.shared.shortcut(for: .history))
     _openEditorShortcut = State(initialValue: QuickAccessManager.shared.openEditorShortcut)
+    _openEditorShortcutEnabled = State(initialValue: QuickAccessManager.shared.openEditorShortcutEnabled)
     _copyAndCloseShortcut = State(initialValue: AnnotateShortcutManager.shared.copyAndCloseShortcut)
     _toggleSidebarShortcut = State(initialValue: AnnotateShortcutManager.shared.toggleSidebarShortcut)
     _togglePinShortcut = State(initialValue: AnnotateShortcutManager.shared.togglePinShortcut)
@@ -566,6 +568,13 @@ struct ShortcutsSettingsView: View {
             description: L10n.PreferencesShortcuts.editLatestCaptureDescription,
             shortcut: $openEditorShortcut,
             defaultShortcut: QuickAccessManager.defaultOpenEditorShortcut,
+            isEnabled: Binding(
+              get: { openEditorShortcutEnabled },
+              set: { newValue in
+                openEditorShortcutEnabled = newValue
+                QuickAccessManager.shared.openEditorShortcutEnabled = newValue
+              }
+            ),
             onShortcutChanged: { config in
               QuickAccessManager.shared.setOpenEditorShortcut(config)
               return true
@@ -826,6 +835,8 @@ struct ShortcutsSettingsView: View {
   private func resetQuickAccessSection() {
     openEditorShortcut = QuickAccessManager.defaultOpenEditorShortcut
     QuickAccessManager.shared.setOpenEditorShortcut(QuickAccessManager.defaultOpenEditorShortcut)
+    openEditorShortcutEnabled = false
+    QuickAccessManager.shared.openEditorShortcutEnabled = false
   }
 
   private func resetAnnotateActionsSection() {

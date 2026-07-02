@@ -345,6 +345,7 @@ final class AreaSelectionController: NSObject {
     initialInteractionMode: AreaSelectionInteractionMode = .manualRegion,
     onDisplayActivationRequested: AreaSelectionDisplayActivationHandler? = nil
   ) {
+    QuickAccessManager.shared.suspendForCapture()
     // Always clean up prior session's monitors to prevent orphaned leaks
     removeEscapeMonitors()
     clearManualSelectionTracking(render: false)
@@ -583,6 +584,31 @@ final class AreaSelectionController: NSObject {
     return result
   }
 
+  /// Async variant of `withDisplayOverlayHidden` — hides the overlay on main, awaits
+  /// the async work closure (which may run off-main), then restores the overlay on main.
+  /// Use when the work body performs blocking I/O like `CGDisplayCreateImage`.
+  func withDisplayOverlayHiddenAsync<T: Sendable>(
+    for displayID: CGDirectDisplayID,
+    perform work: @Sendable () async -> T
+  ) async -> T {
+    guard let window = windowPool[displayID], window.isVisible else {
+      return await work()
+    }
+
+    // Capture-excluded overlays can stay visible without being baked into the snapshot.
+    if window.sharingType == .none {
+      return await work()
+    }
+
+    window.orderOut(nil)
+    let result = await work()
+    window.orderFrontRegardless()
+    window.activateKeyboardInputIfNeeded()
+    window.overlayView.refreshCursor()
+    return result
+  }
+
+
   private func requestDisplayActivationIfNeeded(for window: AreaSelectionWindow) {
     guard interactionMode == .manualRegion else { return }
     guard selectionMode == .screenshot else { return }
@@ -600,6 +626,7 @@ final class AreaSelectionController: NSObject {
   }
 
   private func completeSelection(target: AreaSelectionTarget, from window: AreaSelectionWindow) {
+    QuickAccessManager.shared.resumeAfterCapture()
     let rect = target.rect
     let intersectingDisplayIDs = displayIDsIntersecting(rect)
     let displayID = target.windowTarget?.displayID
@@ -651,6 +678,7 @@ final class AreaSelectionController: NSObject {
 
   /// Cancel the current selection
   func cancelSelection() {
+    QuickAccessManager.shared.resumeAfterCapture()
     DiagnosticLogger.shared.log(.info, .capture, "Area selection cancelled", context: ["mode": "\(selectionMode)"])
     clearManualSelectionTracking(render: false)
     removeEscapeMonitors()
@@ -1275,6 +1303,7 @@ final class AreaSelectionOverlayView: NSView {
     layer.fillRule = .evenOdd
     return layer
   }()
+  private var reusableCrosshairPath = CGMutablePath()
   private var horizontalCrosshairLayer: CAShapeLayer!
   private var verticalCrosshairLayer: CAShapeLayer!
   private var selectionBorderLayer: CAShapeLayer!
@@ -1623,15 +1652,10 @@ final class AreaSelectionOverlayView: NSView {
   }
 
   func applyBackdrop(_ backdrop: AreaSelectionBackdrop) {
-    let imageSize = CGSize(
-      width: CGFloat(backdrop.image.width) / max(backdrop.scaleFactor, 1),
-      height: CGFloat(backdrop.image.height) / max(backdrop.scaleFactor, 1)
-    )
-    let layerImage = NSImage(cgImage: backdrop.image, size: imageSize)
     CATransaction.begin()
     CATransaction.setDisableActions(true)
     snapshotLayer.frame = bounds
-    snapshotLayer.contents = layerImage
+    snapshotLayer.contents = backdrop.image
     snapshotLayer.contentsScale = backdrop.scaleFactor
     snapshotLayer.isHidden = false
     CATransaction.commit()
@@ -1715,38 +1739,30 @@ final class AreaSelectionOverlayView: NSView {
 
   private func updateCrosshairLayers() {
     guard selectionEnabled, interactionMode == .manualRegion else {
-      CATransaction.begin()
-      CATransaction.setDisableActions(true)
       crosshairIndicatorLayer.isHidden = true
-      CATransaction.commit()
       return
     }
-
-    CATransaction.begin()
-    CATransaction.setDisableActions(true)
 
     // Update crosshair indicator position
     crosshairIndicatorLayer.isHidden = false
     let path = createCrosshairIndicatorPath(at: currentMousePosition)
     crosshairIndicatorLayer.path = path
-
-    CATransaction.commit()
   }
 
-  /// Creates a crosshair indicator path centered at the given point
+  /// Updates and returns the reusable crosshair indicator path centered at the given point
   private func createCrosshairIndicatorPath(at point: CGPoint) -> CGPath {
     let size = crosshairIndicatorSize
-    let path = CGMutablePath()
+    reusableCrosshairPath = CGMutablePath()
 
     // Vertical line
-    path.move(to: CGPoint(x: point.x, y: point.y - size))
-    path.addLine(to: CGPoint(x: point.x, y: point.y + size))
+    reusableCrosshairPath.move(to: CGPoint(x: point.x, y: point.y - size))
+    reusableCrosshairPath.addLine(to: CGPoint(x: point.x, y: point.y + size))
 
     // Horizontal line
-    path.move(to: CGPoint(x: point.x - size, y: point.y))
-    path.addLine(to: CGPoint(x: point.x + size, y: point.y))
+    reusableCrosshairPath.move(to: CGPoint(x: point.x - size, y: point.y))
+    reusableCrosshairPath.addLine(to: CGPoint(x: point.x + size, y: point.y))
 
-    return path
+    return reusableCrosshairPath
   }
 
   private func updateDimLayerMask(for selectionRect: CGRect) {

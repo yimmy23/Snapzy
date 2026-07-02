@@ -873,6 +873,16 @@ final class QuickAccessManager: ObservableObject {
     )
   }
 
+  func suspendForCapture() {
+    panelController.suspendMouseMonitors()
+    pinWindowManager.suspendAllMouseMonitors()
+  }
+
+  func resumeAfterCapture() {
+    panelController.resumeMouseMonitors()
+    pinWindowManager.resumeAllMouseMonitors()
+  }
+
   /// Dismiss all screenshots
   func dismissAll() {
     let count = items.count

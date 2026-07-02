@@ -50,6 +50,18 @@ final class QuickAccessPinWindowManager {
     }
     controllers.removeAll()
   }
+
+  func suspendAllMouseMonitors() {
+    for controller in controllers.values {
+      controller.suspendMouseMonitors()
+    }
+  }
+
+  func resumeAllMouseMonitors() {
+    for controller in controllers.values {
+      controller.resumeMouseMonitors()
+    }
+  }
 }
 
 @MainActor
@@ -119,6 +131,14 @@ private final class QuickAccessPinWindowController {
   func close() {
     stopZoomAnimationLoop()
     window.close()
+  }
+
+  func suspendMouseMonitors() {
+    window.suspendMouseMonitors()
+  }
+
+  func resumeMouseMonitors() {
+    window.resumeMouseMonitors()
   }
 
   private func hostingView(size: CGSize) -> QuickAccessPinHostingView {

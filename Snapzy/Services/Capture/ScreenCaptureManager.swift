@@ -284,6 +284,33 @@ final class ScreenCaptureManager: ObservableObject {
     )
   }
 
+  /// Off-main-thread variant — caller must resolve NSScreen data on main thread first,
+  /// then pass as value types so CGDisplayCreateImage can run on a background thread.
+  nonisolated func captureFastDisplaySnapshotOffMain(
+    displayID: CGDirectDisplayID,
+    screenFrame: CGRect,
+    backingScaleFactor: CGFloat,
+    colorSpaceName: CFString?
+  ) -> FrozenDisplaySnapshot? {
+    guard let image = CGDisplayCreateImage(displayID) else {
+      return nil
+    }
+
+    let scaleFactor = Self.imageScaleFactor(
+      for: image,
+      screenFrame: screenFrame,
+      fallback: backingScaleFactor
+    )
+
+    return FrozenDisplaySnapshot(
+      displayID: displayID,
+      screenFrame: screenFrame,
+      scaleFactor: scaleFactor,
+      colorSpaceName: colorSpaceName,
+      image: image
+    )
+  }
+
   func captureDisplaySnapshots(
     displayIDs: Set<CGDirectDisplayID>? = nil,
     showCursor: Bool = false,
@@ -368,7 +395,7 @@ final class ScreenCaptureManager: ObservableObject {
         )
         let screenFrame = screen.frame
 
-        group.addTask { @MainActor in
+        group.addTask {
           let image = try await Self.captureImageCompat(
             contentFilter: filter,
             configuration: configuration
@@ -2163,7 +2190,7 @@ final class ScreenCaptureManager: ObservableObject {
     return configuration
   }
 
-  private func preferredCaptureColorSpaceName(for screen: NSScreen) -> CFString? {
+  func preferredCaptureColorSpaceName(for screen: NSScreen) -> CFString? {
     guard let colorSpaceName = screen.colorSpace?.cgColorSpace?.name else {
       return nil
     }

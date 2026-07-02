@@ -28,9 +28,26 @@ final class QuickAccessPanel: NSPanel {
     installMouseMonitors()
   }
 
+  private var isMonitorsSuspended = false
+
   override func close() {
-    removeMouseMonitors()
+    if !isMonitorsSuspended {
+      removeMouseMonitors()
+    }
+    isMonitorsSuspended = false
     super.close()
+  }
+
+  func suspendMouseMonitors() {
+    guard !isMonitorsSuspended else { return }
+    isMonitorsSuspended = true
+    removeMouseMonitors()
+  }
+
+  func resumeMouseMonitors() {
+    guard isMonitorsSuspended else { return }
+    isMonitorsSuspended = false
+    installMouseMonitors()
   }
 
   func updatePassthroughRegion(itemCount: Int, scale: CGFloat) {
@@ -89,16 +106,20 @@ final class QuickAccessPanel: NSPanel {
       .otherMouseDragged,
     ]
 
-    localMouseMonitor = NSEvent.addLocalMonitorForEvents(matching: mask) { [weak self] event in
-      MainActor.assumeIsolated {
-        self?.handleLocalMouseEvent(event)
+    if localMouseMonitor == nil {
+      localMouseMonitor = NSEvent.addLocalMonitorForEvents(matching: mask) { [weak self] event in
+        MainActor.assumeIsolated {
+          self?.handleLocalMouseEvent(event)
+        }
+        return event
       }
-      return event
     }
 
-    globalMouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: mask) { [weak self] event in
-      Task { @MainActor in
-        self?.handleGlobalMouseEvent(event)
+    if globalMouseMonitor == nil {
+      globalMouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: mask) { [weak self] event in
+        Task { @MainActor in
+          self?.handleGlobalMouseEvent(event)
+        }
       }
     }
   }

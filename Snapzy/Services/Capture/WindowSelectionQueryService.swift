@@ -9,7 +9,7 @@ import AppKit
 import Foundation
 import ScreenCaptureKit
 
-struct WindowSelectionCandidate: Equatable {
+struct WindowSelectionCandidate: Equatable, Sendable {
   let target: WindowCaptureTarget
   let ownerName: String
   let windowLayer: Int
@@ -19,7 +19,7 @@ struct WindowSelectionCandidate: Equatable {
   }
 }
 
-struct WindowSelectionSnapshot {
+struct WindowSelectionSnapshot: Sendable {
   let orderedCandidates: [WindowSelectionCandidate]
 
   func hitTest(at point: CGPoint) -> WindowSelectionCandidate? {
@@ -29,6 +29,16 @@ struct WindowSelectionSnapshot {
 
 @MainActor
 enum WindowSelectionQueryService {
+  struct RawWindowInfo: Sendable {
+    let windowID: CGWindowID
+    let layer: Int?
+    let quartzBounds: CGRect?
+    let alpha: Double
+    let ownerPID: Int32?
+    let ownerName: String?
+    let title: String?
+  }
+
   static func prepareSnapshot(
     prefetchedContentTask: ShareableContentPrefetchTask?,
     excludeOwnApplication: Bool
@@ -39,36 +49,73 @@ enum WindowSelectionQueryService {
         uniqueKeysWithValues: content.windows.filter { $0.isOnScreen }.map { ($0.windowID, $0) }
       )
       let ownBundleIdentifier = Bundle.main.bundleIdentifier
-      guard
-        let rawWindowInfo = CGWindowListCopyWindowInfo(
-          [.optionOnScreenOnly, .excludeDesktopElements],
-          kCGNullWindowID
-        ) as? [[String: Any]]
-      else {
-        return WindowSelectionSnapshot(orderedCandidates: [])
-      }
+
+      let rawWindowInfoList = await Task.detached {
+        guard
+          let rawWindowInfo = CGWindowListCopyWindowInfo(
+            [.optionOnScreenOnly, .excludeDesktopElements],
+            kCGNullWindowID
+          ) as? [[String: Any]]
+        else {
+          return [RawWindowInfo]()
+        }
+
+        return rawWindowInfo.compactMap { windowInfo -> RawWindowInfo? in
+          guard let number = windowInfo[kCGWindowNumber as String] as? NSNumber else { return nil }
+          let windowID = CGWindowID(number.uint32Value)
+          
+          let layer = (windowInfo[kCGWindowLayer as String] as? NSNumber)?.intValue
+          
+          var quartzBounds: CGRect? = nil
+          if let boundsDictionary = windowInfo[kCGWindowBounds as String] as? NSDictionary {
+            quartzBounds = CGRect(dictionaryRepresentation: boundsDictionary)?.standardized
+          }
+          
+          let alpha = (windowInfo[kCGWindowAlpha as String] as? NSNumber)?.doubleValue ?? 1.0
+          let ownerPID = (windowInfo[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value
+          let ownerName = windowInfo[kCGWindowOwnerName as String] as? String
+          let title = windowInfo[kCGWindowName as String] as? String
+
+          return RawWindowInfo(
+            windowID: windowID,
+            layer: layer,
+            quartzBounds: quartzBounds,
+            alpha: alpha,
+            ownerPID: ownerPID,
+            ownerName: ownerName,
+            title: title
+          )
+        }
+      }.value
 
       var seenWindowIDs = Set<CGWindowID>()
       var orderedCandidates: [WindowSelectionCandidate] = []
 
-      for windowInfo in rawWindowInfo {
-        guard let number = windowInfo[kCGWindowNumber as String] as? NSNumber else { continue }
-        let windowID = CGWindowID(number.uint32Value)
+      for info in rawWindowInfoList {
+        let windowID = info.windowID
         guard seenWindowIDs.insert(windowID).inserted else { continue }
         let shareableWindow = shareableWindowsByID[windowID]
-        let windowLayer = windowLayer(from: windowInfo, shareableWindow: shareableWindow)
+        
+        let windowLayer = info.layer ?? shareableWindow?.windowLayer ?? 0
         guard windowLayer == 0 else { continue }
-        guard let frame = windowFrame(from: windowInfo) else { continue }
+        
+        guard let quartzBounds = info.quartzBounds else { continue }
+        let frame = appKitGlobalRect(fromQuartzGlobalRect: quartzBounds).integral
         guard frame.width > 32, frame.height > 32 else { continue }
         guard let displayID = displayID(for: frame) else { continue }
-        if let alpha = windowInfo[kCGWindowAlpha as String] as? NSNumber, alpha.doubleValue <= 0 {
-          continue
-        }
+        guard info.alpha > 0 else { continue }
 
-        let bundleIdentifier = bundleIdentifier(from: windowInfo, shareableWindow: shareableWindow)
+        let bundleIdentifier = shareableWindow?.owningApplication?.bundleIdentifier
+          ?? info.ownerPID.flatMap { NSRunningApplication(processIdentifier: $0)?.bundleIdentifier }
+        
         if excludeOwnApplication, bundleIdentifier == ownBundleIdentifier {
           continue
         }
+
+        let title = (shareableWindow?.title?.isEmpty == false) ? shareableWindow?.title : (info.title?.isEmpty == false ? info.title : nil)
+        let ownerNameVal = (shareableWindow?.owningApplication?.applicationName.isEmpty == false
+          ? shareableWindow?.owningApplication?.applicationName
+          : nil) ?? info.ownerName ?? ""
 
         orderedCandidates.append(
           WindowSelectionCandidate(
@@ -76,11 +123,11 @@ enum WindowSelectionQueryService {
               windowID: windowID,
               frame: frame,
               displayID: displayID,
-              title: windowTitle(from: windowInfo, shareableWindow: shareableWindow),
+              title: title,
               bundleIdentifier: bundleIdentifier,
-              ownerPID: (windowInfo[kCGWindowOwnerPID as String] as? NSNumber)?.int32Value
+              ownerPID: info.ownerPID
             ),
-            ownerName: ownerName(from: windowInfo, shareableWindow: shareableWindow),
+            ownerName: ownerNameVal,
             windowLayer: windowLayer
           )
         )
@@ -145,70 +192,6 @@ enum WindowSelectionQueryService {
       }
     }
     return bestDisplayID
-  }
-
-  private static func windowFrame(from windowInfo: [String: Any]) -> CGRect? {
-    guard let boundsDictionary = windowInfo[kCGWindowBounds as String] as? NSDictionary else {
-      return nil
-    }
-    guard let quartzRect = CGRect(dictionaryRepresentation: boundsDictionary)?.standardized else {
-      return nil
-    }
-    return appKitGlobalRect(fromQuartzGlobalRect: quartzRect).integral
-  }
-
-  private static func windowLayer(
-    from windowInfo: [String: Any],
-    shareableWindow: SCWindow?
-  ) -> Int {
-    if let layer = windowInfo[kCGWindowLayer as String] as? NSNumber {
-      return layer.intValue
-    }
-    return shareableWindow?.windowLayer ?? 0
-  }
-
-  private static func bundleIdentifier(
-    from windowInfo: [String: Any],
-    shareableWindow: SCWindow?
-  ) -> String? {
-    if let bundleIdentifier = shareableWindow?.owningApplication?.bundleIdentifier {
-      return bundleIdentifier
-    }
-
-    guard let ownerPID = windowInfo[kCGWindowOwnerPID as String] as? NSNumber else {
-      return nil
-    }
-    return NSRunningApplication(processIdentifier: ownerPID.int32Value)?.bundleIdentifier
-  }
-
-  private static func ownerName(
-    from windowInfo: [String: Any],
-    shareableWindow: SCWindow?
-  ) -> String {
-    if let applicationName = shareableWindow?.owningApplication?.applicationName, !applicationName.isEmpty {
-      return applicationName
-    }
-
-    if let ownerName = windowInfo[kCGWindowOwnerName as String] as? String {
-      return ownerName
-    }
-
-    return ""
-  }
-
-  private static func windowTitle(
-    from windowInfo: [String: Any],
-    shareableWindow: SCWindow?
-  ) -> String? {
-    if let title = shareableWindow?.title, !title.isEmpty {
-      return title
-    }
-
-    if let title = windowInfo[kCGWindowName as String] as? String, !title.isEmpty {
-      return title
-    }
-
-    return nil
   }
 
   private static func appKitGlobalRect(fromQuartzGlobalRect rect: CGRect) -> CGRect {

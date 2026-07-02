@@ -149,6 +149,14 @@ final class QuickAccessPanelController {
     }
   }
 
+  func suspendMouseMonitors() {
+    panel?.suspendMouseMonitors()
+  }
+
+  func resumeMouseMonitors() {
+    panel?.resumeMouseMonitors()
+  }
+
   /// Check if panel is currently visible
   var isVisible: Bool {
     panel != nil

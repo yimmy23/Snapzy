@@ -21,7 +21,7 @@ nonisolated struct AreaSelectionBackdrop {
   let scaleFactor: CGFloat
 }
 
-nonisolated struct WindowCaptureTarget: Equatable {
+nonisolated struct WindowCaptureTarget: Equatable, Sendable {
   let windowID: CGWindowID
   let frame: CGRect
   let displayID: CGDirectDisplayID

@@ -55,8 +55,21 @@ final class QuickAccessPinWindow: NSPanel {
     }
   }
 
+  private var isMouseMonitorsSuspended = false
+
   override func close() {
-    removeEventMonitors()
+    if !isMouseMonitorsSuspended {
+      removeMouseMonitorsOnly()
+    }
+    if let localKeyMonitor {
+      NSEvent.removeMonitor(localKeyMonitor)
+      self.localKeyMonitor = nil
+    }
+    if let globalKeyMonitor {
+      NSEvent.removeMonitor(globalKeyMonitor)
+      self.globalKeyMonitor = nil
+    }
+    isMouseMonitorsSuspended = false
     super.close()
   }
 
@@ -111,42 +124,43 @@ final class QuickAccessPinWindow: NSPanel {
   private func installMouseMonitors() {
     let mask: NSEvent.EventTypeMask = [.mouseMoved, .leftMouseDragged, .rightMouseDragged, .otherMouseDragged]
 
-    localMouseMonitor = NSEvent.addLocalMonitorForEvents(matching: mask) { [weak self] event in
-      MainActor.assumeIsolated {
-        self?.updateMousePassthrough()
-      }
-      return event
-    }
-
-    globalMouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: mask) { [weak self] _ in
-      Task { @MainActor in
-        self?.updateMousePassthrough()
+    if localMouseMonitor == nil {
+      localMouseMonitor = NSEvent.addLocalMonitorForEvents(matching: mask) { [weak self] event in
+        MainActor.assumeIsolated {
+          self?.updateMousePassthrough()
+        }
+        return event
       }
     }
 
-    localKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-      let didHandle = MainActor.assumeIsolated {
-        self?.handleEscapeIfNeeded(event) ?? false
+    if globalMouseMonitor == nil {
+      globalMouseMonitor = NSEvent.addGlobalMonitorForEvents(matching: mask) { [weak self] _ in
+        Task { @MainActor in
+          self?.updateMousePassthrough()
+        }
       }
-      return didHandle ? nil : event
     }
 
-    globalKeyMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
-      Task { @MainActor in
-        _ = self?.handleEscapeIfNeeded(event)
+    if localKeyMonitor == nil {
+      localKeyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+        let didHandle = MainActor.assumeIsolated {
+          self?.handleEscapeIfNeeded(event) ?? false
+        }
+        return didHandle ? nil : event
+      }
+    }
+
+    if globalKeyMonitor == nil {
+      globalKeyMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
+        Task { @MainActor in
+          _ = self?.handleEscapeIfNeeded(event)
+        }
       }
     }
   }
 
   private func removeEventMonitors() {
-    if let localMouseMonitor {
-      NSEvent.removeMonitor(localMouseMonitor)
-      self.localMouseMonitor = nil
-    }
-    if let globalMouseMonitor {
-      NSEvent.removeMonitor(globalMouseMonitor)
-      self.globalMouseMonitor = nil
-    }
+    removeMouseMonitorsOnly()
     if let localKeyMonitor {
       NSEvent.removeMonitor(localKeyMonitor)
       self.localKeyMonitor = nil
@@ -155,6 +169,29 @@ final class QuickAccessPinWindow: NSPanel {
       NSEvent.removeMonitor(globalKeyMonitor)
       self.globalKeyMonitor = nil
     }
+  }
+
+  private func removeMouseMonitorsOnly() {
+    if let localMouseMonitor {
+      NSEvent.removeMonitor(localMouseMonitor)
+      self.localMouseMonitor = nil
+    }
+    if let globalMouseMonitor {
+      NSEvent.removeMonitor(globalMouseMonitor)
+      self.globalMouseMonitor = nil
+    }
+  }
+
+  func suspendMouseMonitors() {
+    guard !isMouseMonitorsSuspended else { return }
+    isMouseMonitorsSuspended = true
+    removeMouseMonitorsOnly()
+  }
+
+  func resumeMouseMonitors() {
+    guard isMouseMonitorsSuspended else { return }
+    isMouseMonitorsSuspended = false
+    installMouseMonitors()
   }
 
   private func handleEscapeIfNeeded(_ event: NSEvent) -> Bool {

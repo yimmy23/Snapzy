@@ -1235,16 +1235,39 @@ final class ScreenCaptureViewModel: ObservableObject, KeyboardShortcutDelegate {
       guard self.activeAreaSelectionSessionID == sessionID else { return }
 
       // Try fast CG path first (only when no cursor/desktop exclusion needed)
-      if !showCursor, !excludeDesktopIcons, !excludeDesktopWidgets {
-        let fastSnapshot = AreaSelectionController.shared.withDisplayOverlayHidden(for: displayID) {
-          self.captureManager.captureFastDisplaySnapshot(
-            displayID: displayID,
-            showCursor: false,
-            excludeDesktopIcons: false,
-            excludeDesktopWidgets: false,
-            excludeOwnApplication: false
-          )
+      cgFastPath: do {
+        guard !showCursor, !excludeDesktopIcons, !excludeDesktopWidgets else { break cgFastPath }
+
+        // Resolve NSScreen data on main thread (AppKit requirement), then pass as
+        // value types across the thread boundary for off-main CGDisplayCreateImage.
+        guard let screen = NSScreen.screens.first(where: { $0.displayID == displayID }) else {
+          // Display not found — fall through to SCK async path below
+          break cgFastPath
         }
+        let screenFrame = screen.frame
+        let backingScale = screen.backingScaleFactor
+        let colorSpaceName = self.captureManager.preferredCaptureColorSpaceName(for: screen)
+        let captureManager = self.captureManager
+
+        // withDisplayOverlayHiddenAsync: hides overlay on main, runs work off-main, restores on main.
+        let fastSnapshot = await AreaSelectionController.shared.withDisplayOverlayHiddenAsync(
+          for: displayID
+        ) {
+          // Task.detached ensures CGDisplayCreateImage runs on cooperative thread pool,
+          // not on MainActor, freeing main thread for mouse event processing.
+          await Task.detached {
+            captureManager.captureFastDisplaySnapshotOffMain(
+              displayID: displayID,
+              screenFrame: screenFrame,
+              backingScaleFactor: backingScale,
+              colorSpaceName: colorSpaceName
+            )
+          }.value
+        }
+
+        // Re-validate session after awaiting — user may have dismissed capture area.
+        guard self.activeAreaSelectionSessionID == sessionID else { return }
+
         if let fastSnapshot {
           self.applyLazyFrozenSnapshot(
             fastSnapshot,
